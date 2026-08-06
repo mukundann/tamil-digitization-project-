@@ -1,0 +1,30 @@
+- name: Process URLs and PDF Files
+        run: |
+          mkdir -p output_texts
+
+          # Process any .txt files containing links in input_pdfs/
+          for txt_file in input_pdfs/*.txt; do
+            [ -e "$txt_file" ] || continue
+            echo "Reading URLs from $txt_file..."
+            
+            while IFS= read -r url || [ -n "$url" ]; do
+              # Clean up carriage returns and trailing whitespace
+              url=$(echo "$url" | tr -d '\r' | xargs)
+              
+              # Skip empty lines or comment lines
+              [[ -z "$url" || "$url" =~ ^# ]] && continue
+
+              # Generate output filename from URL basename
+              base_name=$(basename "${url%%\?*}" .pdf)
+              output_file="output_texts/${base_name}.txt"
+              
+              # SKIP IF ALREADY PROCESSED
+              if [ -f "$output_file" ]; then
+                echo "Skipping $base_name: $output_file already exists."
+                continue
+              fi
+
+              echo "Processing URL: $url"
+              ./ocr_tamil_pdf.sh "$url" "$output_file"
+            done < "$txt_file"
+          done
