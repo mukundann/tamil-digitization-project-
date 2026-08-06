@@ -1,24 +1,51 @@
-- name: Process URLs and PDF Files
+name: Tamil PDF OCR Automation
+
+on:
+  push:
+    paths:
+      - 'input_pdfs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # Safe timeout to prevent hanging on massive PDFs
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils tesseract-ocr curl
+
+      - name: Make Script Executable
+        run: chmod +x ./ocr_tamil_pdf.sh
+
+      - name: Process Link Files and PDFs
         run: |
           mkdir -p output_texts
 
-          # Process any .txt files containing links in input_pdfs/
+          # Process text files containing links in input_pdfs/
           for txt_file in input_pdfs/*.txt; do
             [ -e "$txt_file" ] || continue
-            echo "Reading URLs from $txt_file..."
+            echo "Reading links from $txt_file..."
             
             while IFS= read -r url || [ -n "$url" ]; do
-              # Clean up carriage returns and trailing whitespace
+              # Strip Windows carriage returns and trailing whitespace
               url=$(echo "$url" | tr -d '\r' | xargs)
               
-              # Skip empty lines or comment lines
+              # Skip empty lines or lines starting with #
               [[ -z "$url" || "$url" =~ ^# ]] && continue
 
-              # Generate output filename from URL basename
               base_name=$(basename "${url%%\?*}" .pdf)
               output_file="output_texts/${base_name}.txt"
               
-              # SKIP IF ALREADY PROCESSED
+              # Skip if output already exists in repository
               if [ -f "$output_file" ]; then
                 echo "Skipping $base_name: $output_file already exists."
                 continue
@@ -28,3 +55,32 @@
               ./ocr_tamil_pdf.sh "$url" "$output_file"
             done < "$txt_file"
           done
+
+          # Process direct local PDF files dropped in input_pdfs/
+          for pdf_file in input_pdfs/*.pdf; do
+            [ -e "$pdf_file" ] || continue
+            base_name=$(basename "$pdf_file" .pdf)
+            output_file="output_texts/${base_name}.txt"
+
+            if [ -f "$output_file" ]; then
+              echo "Skipping $base_name: $output_file already exists."
+              continue
+            fi
+
+            echo "Processing local PDF: $pdf_file"
+            ./ocr_tamil_pdf.sh "$pdf_file" "$output_file"
+          done
+
+      - name: Commit and Push OCR Outputs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add output_texts/*.txt
+
+          if ! git diff --staged --quiet; then
+            git commit -m "Automated OCR text extraction [skip ci]"
+            git push
+          else
+            echo "No new OCR outputs to commit."
+          fi
