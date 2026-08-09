@@ -1,4 +1,4 @@
-name: Tamil PDF OCR Automation (Incremental Chunk Saving)
+name: Tamil PDF OCR Automation (Custom Page Ranges)
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/tam.traineddata \
             "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata"
 
-      - name: Process Link Files and Save Incremental Chunks
+      - name: Process Links with Optional Page Ranges
         run: |
           mkdir -p output_texts temp_pdf
 
@@ -41,17 +41,29 @@ jobs:
             [ -e "$txt_file" ] || continue
             echo "Reading links from $txt_file..."
 
-            while IFS= read -r url || [ -n "$url" ]; do
+            # Read line-by-line splitting on whitespace (URL and optional page range)
+            while read -r url target_range _ || [ -n "$url" ]; do
               # Clean carriage returns and trailing whitespace
               url=$(echo "$url" | tr -d '\r' | xargs)
+              target_range=$(echo "${target_range:-}" | tr -d '\r' | xargs)
+
+              # Skip empty lines or comments
               [[ -z "$url" || "$url" =~ ^# ]] && continue
 
               base_name=$(basename "${url%%\?*}" .pdf)
-              final_output="output_texts/${base_name}.txt"
 
-              # Skip if full merged text output already exists
+              # Include range in filename if specific pages were requested
+              if [ -n "$target_range" ]; then
+                final_output="output_texts/${base_name}_p${target_range}.txt"
+                chunk_dir="output_texts/chunks_${base_name}_p${target_range}"
+              else
+                final_output="output_texts/${base_name}.txt"
+                chunk_dir="output_texts/chunks_${base_name}"
+              fi
+
+              # Skip if final text file already exists
               if [ -f "$final_output" ]; then
-                echo "Skipping $base_name: Final output ($final_output) already exists."
+                echo "Skipping $base_name: Output ($final_output) already exists."
                 continue
               fi
 
@@ -60,60 +72,65 @@ jobs:
               pdf_file="temp_pdf/${base_name}.pdf"
               curl -sSL -o "$pdf_file" "$url"
 
-              # Get total page count using pdfinfo
-              total_pages=$(pdfinfo "$pdf_file" | awk '/^Pages:/ {print $2}')
-              echo "Total pages in $base_name: $total_pages"
+              # Determine total PDF page count
+              pdf_total=$(pdfinfo "$pdf_file" | awk '/^Pages:/ {print $2}')
 
-              # Create persistent directory in output_texts/ for raw chunks
-              chunk_dir="output_texts/chunks_${base_name}"
+              # Set custom start and end pages if provided, otherwise default to full book
+              if [ -n "$target_range" ]; then
+                req_start="${target_range%-*}"
+                req_end="${target_range#*-}"
+                [ "$req_end" -gt "$pdf_total" ] && req_end=$pdf_total
+                echo "Target Page Range: $req_start to $req_end (PDF total: $pdf_total)"
+              else
+                req_start=1
+                req_end=$pdf_total
+                echo "Processing full book: 1 to $req_end"
+              fi
+
               mkdir -p "$chunk_dir"
 
-              # Process in 10-page batches
+              # Process specified range in 10-page batches
               batch_size=10
-              for (( start=1; start<=total_pages; start+=batch_size )); do
+              for (( start=req_start; start<=req_end; start+=batch_size )); do
                 end=$(( start + batch_size - 1 ))
-                if [ $end -gt $total_pages ]; then
-                  end=$total_pages
+                if [ $end -gt $req_end ]; then
+                  end=$req_end
                 fi
 
-                # Zero-pad page numbers so files sort correctly (e.g., chunk_0001_0010.txt)
                 start_fmt=$(printf "%04d" $start)
                 end_fmt=$(printf "%04d" $end)
                 chunk_output="${chunk_dir}/chunk_${start_fmt}_${end_fmt}.txt"
 
-                # Check if this specific chunk was already processed in a previous job
                 if [ -f "$chunk_output" ]; then
-                  echo "Skipping pages $start to $end: Chunk file already exists."
+                  echo "Skipping pages $start to $end: Chunk already exists."
                   continue
                 fi
 
-                echo "Processing pages $start to $end of $total_pages..."
+                echo "Processing pages $start to $end..."
                 ./ocr_tamil_pdf.sh "$pdf_file" "$chunk_output" "${start}-${end}"
               done
 
-              # Merge all completed chunks into final file once all pages are finished
+              # Combine chunks into final file
               echo "Combining chunks into $final_output..."
               > "$final_output"
               for chunk in $(ls "$chunk_dir"/chunk_*.txt | sort -V); do
                 cat "$chunk" >> "$final_output"
               done
 
-              # Clean up temporary PDF file
               rm -f "$pdf_file"
               echo "Finished processing $base_name!"
             done < "$txt_file"
           done
 
-      - name: Commit and Push Chunks and Final Output
+      - name: Commit and Push Output Text Files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage all output text files including intermediate chunk folders
           git add output_texts/
 
           if ! git diff --staged --quiet; then
-            git commit -m "Automated incremental OCR extraction [skip ci]"
+            git commit -m "Automated range-based OCR extraction [skip ci]"
             git push
           else
             echo "No new OCR outputs or chunks to commit."
