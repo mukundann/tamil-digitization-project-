@@ -1,4 +1,4 @@
-name: Tamil PDF OCR Automation (10 Pages per Batch)
+name: Tamil PDF OCR Automation (Incremental Chunk Saving)
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   ocr:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       - name: Checkout Repository
@@ -26,7 +26,14 @@ jobs:
       - name: Make Script Executable
         run: chmod +x ./ocr_tamil_pdf.sh
 
-      - name: Process Link Files in 10-Page Chunks
+      - name: Pre-download Tamil Tesseract Language Pack
+        run: |
+          sudo curl -sSL -o /usr/share/tesseract-ocr/4.00/tessdata/tam.traineddata \
+            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata" || \
+          sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/tam.traineddata \
+            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata"
+
+      - name: Process Link Files and Save Incremental Chunks
         run: |
           mkdir -p output_texts temp_pdf
 
@@ -42,9 +49,9 @@ jobs:
               base_name=$(basename "${url%%\?*}" .pdf)
               final_output="output_texts/${base_name}.txt"
 
-              # Skip if output file already exists
+              # Skip if full merged text output already exists
               if [ -f "$final_output" ]; then
-                echo "Skipping $base_name: $final_output already exists."
+                echo "Skipping $base_name: Final output ($final_output) already exists."
                 continue
               fi
 
@@ -57,8 +64,8 @@ jobs:
               total_pages=$(pdfinfo "$pdf_file" | awk '/^Pages:/ {print $2}')
               echo "Total pages in $base_name: $total_pages"
 
-              # Temporary directory to collect chunk outputs
-              chunk_dir="temp_pdf/chunks_${base_name}"
+              # Create persistent directory in output_texts/ for raw chunks
+              chunk_dir="output_texts/chunks_${base_name}"
               mkdir -p "$chunk_dir"
 
               # Process in 10-page batches
@@ -69,36 +76,45 @@ jobs:
                   end=$total_pages
                 fi
 
-                chunk_output="${chunk_dir}/chunk_${start}_${end}.txt"
+                # Zero-pad page numbers so files sort correctly (e.g., chunk_0001_0010.txt)
+                start_fmt=$(printf "%04d" $start)
+                end_fmt=$(printf "%04d" $end)
+                chunk_output="${chunk_dir}/chunk_${start_fmt}_${end_fmt}.txt"
+
+                # Check if this specific chunk was already processed in a previous job
+                if [ -f "$chunk_output" ]; then
+                  echo "Skipping pages $start to $end: Chunk file already exists."
+                  continue
+                fi
+
                 echo "Processing pages $start to $end of $total_pages..."
-                
-                # Execute script for current 10-page range
                 ./ocr_tamil_pdf.sh "$pdf_file" "$chunk_output" "${start}-${end}"
               done
 
-              # Concatenate all 10-page chunks into the final text file
+              # Merge all completed chunks into final file once all pages are finished
               echo "Combining chunks into $final_output..."
               > "$final_output"
               for chunk in $(ls "$chunk_dir"/chunk_*.txt | sort -V); do
                 cat "$chunk" >> "$final_output"
               done
 
-              # Cleanup downloaded PDF and intermediate chunks
-              rm -rf "$pdf_file" "$chunk_dir"
+              # Clean up temporary PDF file
+              rm -f "$pdf_file"
               echo "Finished processing $base_name!"
             done < "$txt_file"
           done
 
-      - name: Commit and Push Output Text Files
+      - name: Commit and Push Chunks and Final Output
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add output_texts/*.txt
+          # Stage all output text files including intermediate chunk folders
+          git add output_texts/
 
           if ! git diff --staged --quiet; then
-            git commit -m "Automated 10-page chunked OCR extraction [skip ci]"
+            git commit -m "Automated incremental OCR extraction [skip ci]"
             git push
           else
-            echo "No new OCR outputs to commit."
+            echo "No new OCR outputs or chunks to commit."
           fi
