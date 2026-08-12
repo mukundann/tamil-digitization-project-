@@ -18,6 +18,15 @@ def clean_vyakhyanam_ocr(text):
 
     # 3. Common Tesseract Tamil & Grantha typography fixes
     replacements = {
+
+
+        # Audaryam variations
+        'ஒள தார்பத்தை': 'ஔதார்யத்தை',
+        'ஔதார்பத்தை': 'ஔதார்யத்தை',
+        'ஒளதார்யத்தை': 'ஔதார்யத்தை',
+        'ஔதார்பியம்': 'ஔதார்யம்',
+
+        
         # Old font / OCR misreads
         'மக்திர': 'மந்திர',
         'மக்த்ர': 'மந்த்ர',
