@@ -47,7 +47,7 @@ fi
 for page in "$PAGES_DIR"/page-*.png; do
     [[ -f "$page" ]] || continue
     base_name=$(basename "$page" .png)
-    tesseract "$page" "$OCR_DIR/$base_name" -l tam+san --psm "$PSM" >/dev/null 2>&1 &
+    tesseract "$page" "$OCR_DIR/$base_name" -l tam+san --psm "$PSM" --user-words tam.user-words >/dev/null 2>&1 &
 done
 wait
 
