@@ -1,0 +1,56 @@
+name: Clean Existing Output Files
+
+on:
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  clean-outputs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run Text Cleanup on Existing Files
+        run: |
+          if [ ! -d "output_texts" ]; then
+            echo "No output_texts directory found. Exiting."
+            exit 0
+          fi
+
+          echo "Starting cleanup of existing .txt files in output_texts/..."
+
+          # Recursively find all .txt files in output_texts and subdirectories (chunks)
+          find output_texts -type f -name "*.txt" | while read -r txt_file; do
+            echo "Processing: $txt_file"
+            
+            # Run clean_text.py with a temporary output file
+            python3 clean_text.py "$txt_file" "${txt_file}.tmp"
+            
+            # Overwrite original file with cleaned version
+            mv "${txt_file}.tmp" "$txt_file"
+          done
+
+          echo "All text files cleaned successfully!"
+
+      - name: Commit and Push Cleaned Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add output_texts/
+
+          if ! git diff --staged --quiet; then
+            git commit -m "Clean existing OCR output text files with clean_text.py [skip ci]"
+            git push
+          else
+            echo "No changes detected in output files."
+          fi
