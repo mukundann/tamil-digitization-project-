@@ -58,10 +58,10 @@ function handleFileUpload(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(evt) {
+    reader.onload = function (evt) {
         parseAndLoadJSON(evt.target.result);
     };
-    reader.onerror = function() {
+    reader.onerror = function () {
         alert("Error reading file!");
     };
     reader.readAsText(file);
@@ -126,8 +126,8 @@ function renderCards() {
 
     container.innerHTML = '';
 
-    const filteredData = currentBookFilter === 'ALL' 
-        ? reviewData 
+    const filteredData = currentBookFilter === 'ALL'
+        ? reviewData
         : reviewData.filter(item => (item.file || item.filename || item.source_file || 'Unknown Book') === currentBookFilter);
 
     if (!Array.isArray(filteredData) || filteredData.length === 0) {
@@ -188,21 +188,21 @@ function handleTransliterationKeyDown(event) {
     if (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab') {
         const textarea = event.target;
         const cursorPosition = textarea.selectionStart;
-        
+
         const textBeforeCursor = textarea.value.substring(0, cursorPosition);
         const textAfterCursor = textarea.value.substring(cursorPosition);
 
         // Match the last active word before cursor containing English characters
         const match = textBeforeCursor.match(/([a-zA-Z]+)$/);
-        
+
         if (match) {
             const englishWord = match[1];
             const tamilWord = transliterateWord(englishWord);
-            
+
             const newTextBefore = textBeforeCursor.substring(0, textBeforeCursor.length - englishWord.length) + tamilWord;
-            
+
             textarea.value = newTextBefore + textAfterCursor;
-            
+
             // Restore correct cursor offset
             const newCursorPos = newTextBefore.length;
             textarea.selectionStart = textarea.selectionEnd = newCursorPos;
@@ -257,4 +257,108 @@ function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+
+
+let currentInputBuffer = "";
+let suggestions = [];
+let selectedIndex = 0;
+let activeElement = null;
+
+// Google Input Tools Transliteration API Fetcher
+async function fetchTamilTransliteration(text) {
+    if (!text.trim()) return [];
+    const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=ta-t-i0-und&num=5`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data[0] === "SUCCESS") {
+            return data[1][0][1]; // Array of transliterated candidates
+        }
+    } catch (err) {
+        console.error("Transliteration error:", err);
+    }
+    return [];
+}
+
+// Attach listener to editable elements
+function setupTransliteration(element) {
+    element.addEventListener('keydown', async (e) => {
+        const translitBar = document.getElementById('translit-bar');
+
+        if (e.key >= 'a' && e.key <= 'z' || e.key >= 'A' && e.key <= 'Z') {
+            currentInputBuffer += e.key;
+            await updateSuggestions(element);
+        } else if (e.key === 'Backspace' && currentInputBuffer.length > 0) {
+            currentInputBuffer = currentInputBuffer.slice(0, -1);
+            if (currentInputBuffer.length > 0) {
+                await updateSuggestions(element);
+            } else {
+                hideTranslitBar();
+            }
+        } else if ((e.key === ' ' || e.key === 'Enter') && currentInputBuffer.length > 0) {
+            e.preventDefault(); // Stop raw space insert
+            commitSuggestion(element, suggestions[selectedIndex] || currentInputBuffer);
+            if (e.key === ' ') insertTextAtCursor(element, ' ');
+            hideTranslitBar();
+        } else if (e.key === 'ArrowRight' && suggestions.length > 0) {
+            selectedIndex = (selectedIndex + 1) % suggestions.length;
+            renderSuggestions();
+            e.preventDefault();
+        } else if (e.key === 'ArrowLeft' && suggestions.length > 0) {
+            selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
+            renderSuggestions();
+            e.preventDefault();
+        }
+    });
+}
+
+async function updateSuggestions(element) {
+    suggestions = await fetchTamilTransliteration(currentInputBuffer);
+    if (suggestions.length > 0) {
+        selectedIndex = 0;
+        showTranslitBar(element);
+        renderSuggestions();
+    } else {
+        hideTranslitBar();
+    }
+}
+
+function showTranslitBar(element) {
+    const translitBar = document.getElementById('translit-bar');
+    const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+    translitBar.style.top = `${window.scrollY + rect.top - 40}px`;
+    translitBar.style.left = `${window.scrollX + rect.left}px`;
+    translitBar.style.display = 'block';
+}
+
+function hideTranslitBar() {
+    const translitBar = document.getElementById('translit-bar');
+    translitBar.style.display = 'none';
+    currentInputBuffer = "";
+    suggestions = [];
+}
+
+function renderSuggestions() {
+    const translitBar = document.getElementById('translit-bar');
+    translitBar.innerHTML = suggestions.map((s, i) =>
+        `<span class="translit-option ${i === selectedIndex ? 'active' : ''}" onclick="selectCandidate('${s}')">${i + 1}. ${s}</span>`
+    ).join('');
+}
+
+function commitSuggestion(element, tamilText) {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        // Replace buffer english characters with converted Tamil text
+        for (let i = 0; i < currentInputBuffer.length; i++) {
+            document.execCommand('delete', false, null);
+        }
+        document.execCommand('insertText', false, tamilText);
+    }
+}
+
+function insertTextAtCursor(element, text) {
+    document.execCommand('insertText', false, text);
 }

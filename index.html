@@ -1,100 +1,147 @@
 <!DOCTYPE html>
 <html lang="ta">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paragraph-Level Tamil OCR Proofreader</title>
-    <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
-        h2 { color: #333; margin-bottom: 5px; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        
-        .file-input-box { margin-bottom: 20px; border: 2px dashed #ccc; padding: 15px; text-align: center; background: #fafafa; border-radius: 6px; }
-        
-        details summary { cursor: pointer; font-weight: bold; color: #2980b9; margin-top: 10px; }
-        
-        .filter-section { 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            background: #eef2f5; 
-            padding: 12px 15px; 
-            border-radius: 6px; 
-            margin-bottom: 20px; 
-        }
-        .filter-section label { font-weight: bold; margin: 0; color: #333; }
-        .filter-section select { padding: 6px 12px; font-size: 1em; border-radius: 4px; border: 1px solid #ccc; width: 60%; }
-
-        .card { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; padding: 15px; background: #fff; }
-        .card-header { font-size: 0.9em; color: #666; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .flagged-word-badge { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
-        
-        .paragraph-preview { 
-            background: #fdf6e3; 
-            padding: 12px; 
-            border-left: 4px solid #b58900; 
-            margin-bottom: 12px; 
-            line-height: 1.6;
-            font-size: 1.1em;
-        }
-        mark.highlight { background-color: #ffeb3b; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-        
-        label { font-weight: bold; display: block; margin-top: 10px; margin-bottom: 5px; color: #444; }
-        
-        textarea.editable-paragraph {
-            width: 100%;
-            height: 100px;
-            font-size: 1.05em;
-            line-height: 1.5;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-family: inherit;
-        }
-
-        .actions { margin-top: 15px; text-align: right; }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-save { background: #2ecc71; color: white; }
-        .btn-save:hover { background: #27ae60; }
-        .btn-skip { background: #95a5a6; color: white; margin-left: 10px; }
-        .btn-skip:hover { background: #7f8c8d; }
-        .btn-export { background: #3498db; color: white; padding: 12px 24px; font-size: 1em; }
-        .btn-export:hover { background: #2980b9; }
-        .btn-secondary { background: #6c757d; color: white; margin-top: 8px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Tamil OCR Paragraph Proofreader</title>
+  <style>
+    body { font-family: 'Mukta Malar', Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+    .card { background: white; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+    .paragraph-box { border: 1px solid #ccc; padding: 10px; border-radius: 5px; line-height: 1.8; font-size: 18px; outline: none; background: #fff; }
+    .highlight { background-color: #ffeeba; border-bottom: 2px solid #ffc107; padding: 2px 4px; border-radius: 3px; }
+    
+    /* Transliteration Suggestion Bar */
+    #translit-bar {
+      position: absolute;
+      display: none;
+      background: #333;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 16px;
+      z-index: 1000;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    .translit-option {
+      display: inline-block;
+      margin-right: 12px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .translit-option.active {
+      background: #007bff;
+      color: white;
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Paragraph-Level Tamil OCR Proofreader</h2>
-    <p style="color:#666; font-size:0.95em; margin-top:0;">Load your <code>words_for_review.json</code> file or paste its content to begin proofreading.</p>
-    
-    <div class="file-input-box">
-        <label for="jsonFileInput">1. Choose File:</label>
-        <input type="file" id="jsonFileInput" accept=".json">
+  <h2>Tamil OCR Inline Proofreader</h2>
+  <div id="translit-bar"></div>
+  <div id="container"></div>
 
-        <details>
-            <summary>2. Or Paste JSON Content Directly (Fallback Method)</summary>
-            <textarea id="jsonPasteArea" style="width:100%; height:120px; margin-top:10px; font-family:monospace;" placeholder="Paste contents of words_for_review.json here..."></textarea><br>
-            <button class="btn btn-secondary" onclick="loadPastedJSON()">Load Pasted JSON</button>
-        </details>
-    </div>
+  <script>
+    let currentInputBuffer = "";
+    let suggestions = [];
+    let selectedIndex = 0;
+    let activeElement = null;
 
-    <div class="filter-section" id="filterSection" style="display: none;">
-        <label for="bookSelect">Select Book / File:</label>
-        <select id="bookSelect" onchange="filterByBook()">
-            <option value="ALL">Show All Books</option>
-        </select>
-    </div>
+    // Google Input Tools Transliteration API Fetcher
+    async function fetchTamilTransliteration(text) {
+      if (!text.trim()) return [];
+      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=ta-t-i0-und&num=5`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data[0] === "SUCCESS") {
+          return data[1][0][1]; // Array of transliterated candidates
+        }
+      } catch (err) {
+        console.error("Transliteration error:", err);
+      }
+      return [];
+    }
 
-    <div id="reviewContainer"></div>
+    // Attach listener to editable elements
+    function setupTransliteration(element) {
+      element.addEventListener('keydown', async (e) => {
+        const translitBar = document.getElementById('translit-bar');
 
-    <div style="text-align: center; margin-top: 30px;">
-        <button class="btn btn-export" onclick="exportReplacements()">Export Saved Corrections (replacements.json)</button>
-    </div>
-</div>
+        if (e.key >= 'a' && e.key <= 'z' || e.key >= 'A' && e.key <= 'Z') {
+          currentInputBuffer += e.key;
+          await updateSuggestions(element);
+        } else if (e.key === 'Backspace' && currentInputBuffer.length > 0) {
+          currentInputBuffer = currentInputBuffer.slice(0, -1);
+          if (currentInputBuffer.length > 0) {
+            await updateSuggestions(element);
+          } else {
+            hideTranslitBar();
+          }
+        } else if ((e.key === ' ' || e.key === 'Enter') && currentInputBuffer.length > 0) {
+          e.preventDefault(); // Stop raw space insert
+          commitSuggestion(element, suggestions[selectedIndex] || currentInputBuffer);
+          if (e.key === ' ') insertTextAtCursor(element, ' ');
+          hideTranslitBar();
+        } else if (e.key === 'ArrowRight' && suggestions.length > 0) {
+          selectedIndex = (selectedIndex + 1) % suggestions.length;
+          renderSuggestions();
+          e.preventDefault();
+        } else if (e.key === 'ArrowLeft' && suggestions.length > 0) {
+          selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
+          renderSuggestions();
+          e.preventDefault();
+        }
+      });
+    }
 
-<script src="app.js"></script>
+    async function updateSuggestions(element) {
+      suggestions = await fetchTamilTransliteration(currentInputBuffer);
+      if (suggestions.length > 0) {
+        selectedIndex = 0;
+        showTranslitBar(element);
+        renderSuggestions();
+      } else {
+        hideTranslitBar();
+      }
+    }
+
+    function showTranslitBar(element) {
+      const translitBar = document.getElementById('translit-bar');
+      const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+      translitBar.style.top = `${window.scrollY + rect.top - 40}px`;
+      translitBar.style.left = `${window.scrollX + rect.left}px`;
+      translitBar.style.display = 'block';
+    }
+
+    function hideTranslitBar() {
+      const translitBar = document.getElementById('translit-bar');
+      translitBar.style.display = 'none';
+      currentInputBuffer = "";
+      suggestions = [];
+    }
+
+    function renderSuggestions() {
+      const translitBar = document.getElementById('translit-bar');
+      translitBar.innerHTML = suggestions.map((s, i) => 
+        `<span class="translit-option ${i === selectedIndex ? 'active' : ''}" onclick="selectCandidate('${s}')">${i + 1}. ${s}</span>`
+      ).join('');
+    }
+
+    function commitSuggestion(element, tamilText) {
+      const sel = window.getSelection();
+      if (sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        // Replace buffer english characters with converted Tamil text
+        for (let i = 0; i < currentInputBuffer.length; i++) {
+          document.execCommand('delete', false, null);
+        }
+        document.execCommand('insertText', false, tamilText);
+      }
+    }
+
+    function insertTextAtCursor(element, text) {
+      document.execCommand('insertText', false, text);
+    }
+  </script>
 </body>
 </html>
