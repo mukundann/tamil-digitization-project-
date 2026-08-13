@@ -92,7 +92,7 @@ jobs:
 
               batch_size=10
               pages_processed_this_run=0
-              max_pages_per_run=20
+              max_pages_per_run=10
 
               for (( start=req_start; start<=req_end; start+=batch_size )); do
                 end=$(( start + batch_size - 1 ))
@@ -112,7 +112,7 @@ jobs:
 
                 # Stop if we hit the 20-page limit for this run
                 if [ $pages_processed_this_run -ge $max_pages_per_run ]; then
-                  echo "Reached 20-page quota limit for this workflow run."
+                  echo "Reached 10-page quota limit for this workflow run."
                   MORE_WORK_REMAINS=true
                   break
                 fi
@@ -170,6 +170,18 @@ jobs:
           else
             echo "No new OCR outputs or chunks to commit."
           fi
+
+      - name: Update Master Lexicon & Flag Corrections
+        run: |
+          python3 update_lexicon.py
+
+      - name: Commit updated lexicon and flagged lists
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add master_lexicon.json words_for_review.txt
+          git commit -m "Update master vocabulary & flagged review list [skip ci]" || echo "No changes"
+          git push
 
       - name: Trigger Next Batch Workflow if Unfinished
         if: env.MORE_WORK_REMAINS == 'true'
