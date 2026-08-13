@@ -23,22 +23,10 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y poppler-utils tesseract-ocr curl python3
+          sudo apt-get install -y poppler-utils tesseract-ocr curl python3  tesseract-ocr-tam tesseract-ocr-san poppler-utils parallel
 
       - name: Make Script Executable
         run: chmod +x ./ocr_tamil_pdf.sh
-
-      - name: Pre-download Tamil and Sanskrit Tesseract Language Packs
-        run: |
-          sudo curl -sSL -o /usr/share/tesseract-ocr/4.00/tessdata/tam.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata" || \
-          sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/tam.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata"
-          
-          sudo curl -sSL -o /usr/share/tesseract-ocr/4.00/tessdata/san.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/san.traineddata" || \
-          sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/san.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/san.traineddata"
 
       - name: Process Books (Max 20 Pages per Workflow Run)
         run: |
