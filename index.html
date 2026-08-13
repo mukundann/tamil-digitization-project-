@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paragraph-Level Tamil OCR Proofreader</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
+        h2 { color: #333; margin-bottom: 5px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        .file-input-box { margin-bottom: 20px; border: 2px dashed #ccc; padding: 15px; text-align: center; background: #fafafa; border-radius: 6px; }
+        
+        details summary { cursor: pointer; font-weight: bold; color: #2980b9; margin-top: 10px; }
+        
+        .filter-section { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            background: #eef2f5; 
+            padding: 12px 15px; 
+            border-radius: 6px; 
+            margin-bottom: 20px; 
+        }
+        .filter-section label { font-weight: bold; margin: 0; color: #333; }
+        .filter-section select { padding: 6px 12px; font-size: 1em; border-radius: 4px; border: 1px solid #ccc; width: 60%; }
+
+        .card { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; padding: 15px; background: #fff; }
+        .card-header { font-size: 0.9em; color: #666; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .flagged-word-badge { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; }
+        
+        .paragraph-preview { 
+            background: #fdf6e3; 
+            padding: 12px; 
+            border-left: 4px solid #b58900; 
+            margin-bottom: 12px; 
+            line-height: 1.6;
+            font-size: 1.1em;
+        }
+        mark.highlight { background-color: #ffeb3b; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
+        
+        label { font-weight: bold; display: block; margin-top: 10px; margin-bottom: 5px; color: #444; }
+        
+        textarea.editable-paragraph {
+            width: 100%;
+            height: 100px;
+            font-size: 1.05em;
+            line-height: 1.5;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .actions { margin-top: 15px; text-align: right; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-save { background: #2ecc71; color: white; }
+        .btn-save:hover { background: #27ae60; }
+        .btn-skip { background: #95a5a6; color: white; margin-left: 10px; }
+        .btn-skip:hover { background: #7f8c8d; }
+        .btn-export { background: #3498db; color: white; padding: 12px 24px; font-size: 1em; }
+        .btn-export:hover { background: #2980b9; }
+        .btn-secondary { background: #6c757d; color: white; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Paragraph-Level Tamil OCR Proofreader</h2>
+    <p style="color:#666; font-size:0.95em; margin-top:0;">Load your <code>words_for_review.json</code> file or paste its content to begin proofreading.</p>
+    
+    <div class="file-input-box">
+        <label for="jsonFileInput">1. Choose File:</label>
+        <input type="file" id="jsonFileInput" accept=".json">
+
+        <details>
+            <summary>2. Or Paste JSON Content Directly (Fallback Method)</summary>
+            <textarea id="jsonPasteArea" style="width:100%; height:120px; margin-top:10px; font-family:monospace;" placeholder="Paste contents of words_for_review.json here..."></textarea><br>
+            <button class="btn btn-secondary" onclick="loadPastedJSON()">Load Pasted JSON</button>
+        </details>
+    </div>
+
+    <div class="filter-section" id="filterSection" style="display: none;">
+        <label for="bookSelect">Select Book / File:</label>
+        <select id="bookSelect" onchange="filterByBook()">
+            <option value="ALL">Show All Books</option>
+        </select>
+    </div>
+
+    <div id="reviewContainer"></div>
+
+    <div style="text-align: center; margin-top: 30px;">
+        <button class="btn btn-export" onclick="exportReplacements()">Export Saved Corrections (replacements.json)</button>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
