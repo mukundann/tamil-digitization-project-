@@ -167,9 +167,17 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add master_lexicon.json words_for_review.txt
-          git commit -m "Update master vocabulary & flagged review list [skip ci]" || echo "No changes"
-          git push
+
+          # Safely stage files if they exist
+          git add master_lexicon.json words_for_review.json 2>/dev/null || true
+
+          # Commit and push only if changes were staged
+          if ! git diff --staged --quiet; then
+            git commit -m "Update master vocabulary & flagged review list [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi
 
       - name: Trigger Next Batch Workflow if Unfinished
         if: env.MORE_WORK_REMAINS == 'true'
