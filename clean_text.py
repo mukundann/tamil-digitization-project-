@@ -1,47 +1,28 @@
 #!/usr/bin/env python3
+"""
+clean_text.py - Post-processing script for Tamil & Manipravalam Vyakhyanam OCR output.
+"""
 import re
 import sys
 
 def clean_vyakhyanam_ocr(text):
-    # 1. Fix specific 'ச' -> 'த' misreads (e.g., சன்னுடைய -> தன்னுடைய)
-    # capturing variations like சன்னுடைய, சன்னுடையது, சன்னுடையதான
-    text = re.sub(r'\bசன்னுடைய', 'தன்னுடைய', text)
-    text = re.sub(r'\bசன்னால்', 'தன்னால்', text)
-    text = re.sub(r'\bசன்னைய', 'தன்னைய', text)
-    text = re.sub(r'\bசனக்கு', 'தனக்கு', text)
-    text = re.sub(r'\bசனது', 'தனது', text)
-
-    # 2. Normalize 'Sri' variations
+    # Normalize 'Sri' variations
     text = re.sub(r'ஸரீ', 'ஸ்ரீ', text)
     text = re.sub(r'ஶ்ரீ', 'ஸ்ரீ', text)
     text = re.sub(r'ஸ்ரீ\s*\d+', 'ஸ்ரீ', text)
 
-    # 3. Common Tesseract Tamil & Grantha typography fixes
+    # Common Tesseract Tamil & Grantha typography fixes
     replacements = {
-
-
-        # Audaryam variations
-        'ஒள தார்பத்தை': 'ஔதார்யத்தை',
-        'ஔதார்பத்தை': 'ஔதார்யத்தை',
-        'ஒளதார்யத்தை': 'ஔதார்யத்தை',
-        'ஔதார்பியம்': 'ஔதார்யம்',
-
-        
-        # Old font / OCR misreads
         'மக்திர': 'மந்திர',
         'மக்த்ர': 'மந்த்ர',
         'ஸச்கிதி': 'ஸந்நிதி',
         'ஸக்சிதி': 'ஸந்நிதி',
-        
-        # 'இ' / 'இர' vs 'தி' misreads due to faint pulli
         'இருமொழி': 'திருமொழி',
         'இருப்பதிக': 'திருப்பதிக',
         'இருப்பிரிதி': 'திருப்பிரிதி',
         'இருநாங்கூர்': 'திருநாங்கூர்',
         'இருவிண்ணக': 'திருவிண்ணக',
         'இருவயிந்திரபுர': 'திருவயிந்திரபுர',
-        
-        # Manipravalam vocabulary fixes
         'லபி.த்ச': 'லபித்த',
         'அனுபவித்து': 'அநுபவித்து',
         'மங்களாசாஸகஞ்': 'மங்களாசாஸநஞ்',
@@ -52,12 +33,12 @@ def clean_vyakhyanam_ocr(text):
     for target, replacement in replacements.items():
         text = text.replace(target, replacement)
 
-    # 4. Clean up scan artifacts, header noise, and broken lines
+    # Clean up scan noise
     text = re.sub(r'https?://\S+', '', text)
     text = re.sub(r'110://\s*\S+', '', text)
     text = re.sub(r'^[ஜ்‌\s*வ்‌\s*ஷி\s*ண\s*துப\s*டட\s*உ\s*\|]+$', '', text, flags=re.MULTILINE)
     
-    # 5. Space and blank line cleanup
+    # Normalize spaces
     text = re.sub(r'[ \t]+', ' ', text)
     text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
 
@@ -65,6 +46,7 @@ def clean_vyakhyanam_ocr(text):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
+        print("Usage: python3 clean_text.py input.txt output.txt")
         sys.exit(1)
 
     with open(sys.argv[1], 'r', encoding='utf-8') as infile:

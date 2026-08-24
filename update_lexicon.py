@@ -9,17 +9,15 @@ FLAGGED_OUTPUT = "words_for_review.json"
 REPLACEMENTS_FILE = "replacements.json"
 OUTPUT_TEXTS_DIR = "output_texts"
 
-# Patterns indicating OCR glitches / suspicious characters
 ANOMALY_PATTERNS = [
-    r'\.',           # Misplaced dots inside words
-    r'\d',           # Digits merged into words
-    r'[A-Za-z]',     # English characters mixed in Tamil
-    r'[\=\+\*\/\<\>]', # Math/special symbols
-    r'(.)\1{2,}',    # Repeated characters 3+ times
+    r'\.',
+    r'\d',
+    r'[A-Za-z]',
+    r'[\=\+\*\/\<\>]',
+    r'(.)\1{2,}',
 ]
 
 def load_validated_corrections():
-    """Load previously reviewed & validated words from replacements.json."""
     if os.path.exists(REPLACEMENTS_FILE):
         try:
             with open(REPLACEMENTS_FILE, 'r', encoding='utf-8') as f:
@@ -35,11 +33,10 @@ def is_suspicious(word):
     return False
 
 def split_into_paragraphs(text):
-    """Split text by double line breaks or page breaks."""
     raw_paras = re.split(r'\n\s*\n|--- Page Break ---', text)
     paragraphs = []
     for p in raw_paras:
-        clean_p = ' '.join(p.split()) # Normalize whitespace inside paragraph
+        clean_p = ' '.join(p.split())
         if clean_p:
             paragraphs.append(clean_p)
     return paragraphs
@@ -63,11 +60,18 @@ def process_ocr_outputs():
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
+        # Extract associated page image if marker present
+        img_match = re.search(r'\[\[IMAGE:(.*?)\]\]', content)
+        image_url = img_match.group(1) if img_match else ""
+
         paragraphs = split_into_paragraphs(content)
 
         for paragraph in paragraphs:
-            # Tokenize paragraph into clean words
-            words = re.findall(r'[\u0B80-\u0BFF\w\.]+', paragraph)
+            clean_para = re.sub(r'\[\[IMAGE:.*?\]\]', '', paragraph).strip()
+            if not clean_para:
+                continue
+
+            words = re.findall(r'[\u0B80-\u0BFF\w\.]+', clean_para)
             for w in words:
                 clean_w = w.strip('.,;:"\'()[]{}')
                 if not clean_w:
@@ -75,33 +79,21 @@ def process_ocr_outputs():
 
                 master_lexicon[clean_w] = master_lexicon.get(clean_w, 0) + 1
 
-                # Flag condition:
-                # 1. Matches suspicious pattern OR is rare (< 2 occurrences)
-                # 2. Has NOT been previously validated in replacements.json
                 if (is_suspicious(clean_w) or master_lexicon[clean_w] < 2):
                     if clean_w not in validated_words and clean_w not in seen_words:
                         seen_words.add(clean_w)
                         
-                        # Wrap word with <mark> inside paragraph for visual context
-                        highlighted_paragraph = re.sub(
-                            r'\b' + re.escape(clean_w) + r'\b',
-                            f'<mark class="highlight">{clean_w}</mark>',
-                            paragraph,
-                            count=1
-                        )
-                        
                         flagged_entries.append({
                             "word": clean_w,
-                            "paragraph": highlighted_paragraph,
-                            "raw_paragraph": paragraph,
-                            "file": filename
+                            "paragraph": clean_para,
+                            "raw_paragraph": clean_para,
+                            "file": filename,
+                            "image_url": image_url
                         })
 
-    # Save updated master lexicon
     with open(MASTER_LEXICON_FILE, 'w', encoding='utf-8') as f:
         json.dump(master_lexicon, f, ensure_ascii=False, indent=2)
 
-    # Save flagged entries with full paragraph context
     with open(FLAGGED_OUTPUT, 'w', encoding='utf-8') as f:
         json.dump(flagged_entries, f, ensure_ascii=False, indent=2)
 

@@ -11,15 +11,13 @@ INPUT_ARG="${1:?Usage: $0 <pdf_path_or_url> output.txt [page_range]}"
 OUTPUT_TXT="${2:?Usage: $0 <pdf_path_or_url> output.txt [page_range]}"
 PAGE_RANGE="${3:-}"
 
-# 300 DPI handles small commentary fonts and Grantha ligatures
 DPI=300
-# PSM 6 treats each page as a single uniform block of text
 PSM=6
 
 WORKDIR="$(mktemp -d)"
 PAGES_DIR="$WORKDIR/pages"
 OCR_DIR="$WORKDIR/ocr"
-mkdir -p "$PAGES_DIR" "$OCR_DIR"
+mkdir -p "$PAGES_DIR" "$OCR_DIR" output_texts/images
 
 cleanup() {
     rm -rf "$WORKDIR"
@@ -43,18 +41,23 @@ else
     pdftoppm -png -r "$DPI" "$INPUT_PDF" "$PAGES_DIR/page"
 fi
 
+# Save rendered images for UI display
+cp "$PAGES_DIR"/page-*.png output_texts/images/ 2>/dev/null || true
+
 # Step 2: Run Tesseract using combined Tamil + Sanskrit language models
 for page in "$PAGES_DIR"/page-*.png; do
     [[ -f "$page" ]] || continue
     base_name=$(basename "$page" .png)
-    tesseract "$page" "$OCR_DIR/$base_name" -l tam+san --psm "$PSM" --user-words tam.user-words >/dev/null 2>&1 &
+    tesseract "$page" "$OCR_DIR/$base_name" -l tam+san --psm "$PSM" >/dev/null 2>&1 &
 done
 wait
 
 # Step 3: Clean text outputs via Python script and concatenate in order
 > "$OUTPUT_TXT"
 for txt in $(ls "$OCR_DIR"/page-*.txt | sort -V); do
+    base_page=$(basename "$txt" .txt)
     python3 clean_text.py "$txt" "$WORKDIR/cleaned_temp.txt"
+    echo "[[IMAGE:output_texts/images/${base_page}.png]]" >> "$OUTPUT_TXT"
     cat "$WORKDIR/cleaned_temp.txt" >> "$OUTPUT_TXT"
     echo -e "\n\n--- Page Break ---\n" >> "$OUTPUT_TXT"
 done

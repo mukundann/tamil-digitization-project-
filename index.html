@@ -1,147 +1,86 @@
 <!DOCTYPE html>
 <html lang="ta">
+
 <head>
   <meta charset="UTF-8">
-  <title>Tamil OCR Paragraph Proofreader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tamil OCR Split-View Editor</title>
   <style>
-    body { font-family: 'Mukta Malar', Arial, sans-serif; margin: 20px; background: #f9f9f9; }
-    .card { background: white; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
-    .paragraph-box { border: 1px solid #ccc; padding: 10px; border-radius: 5px; line-height: 1.8; font-size: 18px; outline: none; background: #fff; }
-    .highlight { background-color: #ffeeba; border-bottom: 2px solid #ffc107; padding: 2px 4px; border-radius: 3px; }
-    
-    /* Transliteration Suggestion Bar */
-    #translit-bar {
-      position: absolute;
-      display: none;
-      background: #333;
-      color: #fff;
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-size: 16px;
-      z-index: 1000;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }
-    .translit-option {
-      display: inline-block;
-      margin-right: 12px;
-      cursor: pointer;
-      padding: 2px 6px;
-      border-radius: 3px;
-    }
-    .translit-option.active {
-      background: #007bff;
-      color: white;
-    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f4f6f9; }
+    header { background: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .header-controls { display: flex; gap: 10px; align-items: center; }
+    .container { display: flex; flex: 1; overflow: hidden; }
+    .sidebar { width: 300px; background: #fff; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 12px; background: #e9ecef; font-weight: bold; border-bottom: 1px solid #ccc; display: flex; justify-content: space-between; }
+    .list-group { overflow-y: auto; flex: 1; list-style: none; margin: 0; padding: 0; }
+    .list-group-item { padding: 10px 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
+    .list-group-item.active { background-color: #007bff; color: white; }
+    .main-split-content { flex: 1; display: flex; width: 100%; }
+    .image-panel { flex: 1; background: #333; padding: 10px; display: flex; justify-content: center; align-items: center; overflow: auto; }
+    .image-panel img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .editor-panel { flex: 1; display: flex; flex-direction: column; padding: 15px; background: #fff; border-left: 1px solid #ccc; overflow-y: auto; }
+    textarea { width: 100%; height: 220px; font-size: 18px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
+    .btn { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-primary { background: #28a745; color: white; }
+    .btn-secondary { background: #007bff; color: white; }
+    .btn-done { background: #17a2b8; color: white; }
+    .btn-nav { background: #6c757d; color: white; }
+    .keyboard-container { background: #e9ecef; border: 1px solid #ccc; border-radius: 4px; padding: 8px; margin-top: 10px; }
+    .keyboard-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+    .key { background: white; border: 1px solid #ced4da; padding: 5px 8px; font-size: 15px; cursor: pointer; }
+    .key:hover { background: #007bff; color: white; }
   </style>
 </head>
+
 <body>
+  <header>
+    <h2>Tamil OCR Split-View Editor</h2>
+    <div class="header-controls">
+      <input type="file" id="jsonFileInput" accept=".js, .json" style="display: none;" onchange="handleFileSelect(event)">
+      <button class="btn btn-secondary" onclick="document.getElementById('jsonFileInput').click()">Open File</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveFile()" disabled>Save File Back</button>
+    </div>
+  </header>
 
-  <h2>Tamil OCR Inline Proofreader</h2>
-  <div id="translit-bar"></div>
-  <div id="container"></div>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Segments</span>
+        <span id="progressTracker">0/0 Done</span>
+      </div>
+      <ul class="list-group" id="pasuramList">
+        <li class="list-group-item">Load a file to begin...</li>
+      </ul>
+    </div>
 
-  <script>
-    let currentInputBuffer = "";
-    let suggestions = [];
-    let selectedIndex = 0;
-    let activeElement = null;
+    <div class="main-split-content">
+      <div class="image-panel">
+        <img id="pageViewer" src="" alt="Select a segment to load original page image">
+      </div>
 
-    // Google Input Tools Transliteration API Fetcher
-    async function fetchTamilTransliteration(text) {
-      if (!text.trim()) return [];
-      const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=ta-t-i0-und&num=5`;
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-        if (data[0] === "SUCCESS") {
-          return data[1][0][1]; // Array of transliterated candidates
-        }
-      } catch (err) {
-        console.error("Transliteration error:", err);
-      }
-      return [];
-    }
+      <div class="editor-panel">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <strong id="currentEditingLabel">Select a segment:</strong>
+          <div>
+            <button class="btn btn-done" id="markDoneBtn" onclick="toggleDoneState()" disabled>Mark as Done</button>
+            <button class="btn btn-nav" id="prevBtn" onclick="navigate(-1)" disabled>Prev</button>
+            <button class="btn btn-nav" id="nextBtn" onclick="navigate(1)" disabled>Next</button>
+          </div>
+        </div>
 
-    // Attach listener to editable elements
-    function setupTransliteration(element) {
-      element.addEventListener('keydown', async (e) => {
-        const translitBar = document.getElementById('translit-bar');
+        <textarea id="pasuramEditor" placeholder="Loaded text will appear here... (Type English + Space to transliterate)" onkeydown="handleTransliterationKeyDown(event)"></textarea>
 
-        if (e.key >= 'a' && e.key <= 'z' || e.key >= 'A' && e.key <= 'Z') {
-          currentInputBuffer += e.key;
-          await updateSuggestions(element);
-        } else if (e.key === 'Backspace' && currentInputBuffer.length > 0) {
-          currentInputBuffer = currentInputBuffer.slice(0, -1);
-          if (currentInputBuffer.length > 0) {
-            await updateSuggestions(element);
-          } else {
-            hideTranslitBar();
-          }
-        } else if ((e.key === ' ' || e.key === 'Enter') && currentInputBuffer.length > 0) {
-          e.preventDefault(); // Stop raw space insert
-          commitSuggestion(element, suggestions[selectedIndex] || currentInputBuffer);
-          if (e.key === ' ') insertTextAtCursor(element, ' ');
-          hideTranslitBar();
-        } else if (e.key === 'ArrowRight' && suggestions.length > 0) {
-          selectedIndex = (selectedIndex + 1) % suggestions.length;
-          renderSuggestions();
-          e.preventDefault();
-        } else if (e.key === 'ArrowLeft' && suggestions.length > 0) {
-          selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
-          renderSuggestions();
-          e.preventDefault();
-        }
-      });
-    }
+        <div class="keyboard-container">
+          <div style="font-size:12px; font-weight:bold; margin-bottom:5px;">Virtual Tamil Keyboard</div>
+          <div class="keyboard-row" id="vowelsRow"></div>
+          <div class="keyboard-row" id="consonantsRow"></div>
+          <div class="keyboard-row" id="modifiersRow"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    async function updateSuggestions(element) {
-      suggestions = await fetchTamilTransliteration(currentInputBuffer);
-      if (suggestions.length > 0) {
-        selectedIndex = 0;
-        showTranslitBar(element);
-        renderSuggestions();
-      } else {
-        hideTranslitBar();
-      }
-    }
-
-    function showTranslitBar(element) {
-      const translitBar = document.getElementById('translit-bar');
-      const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
-      translitBar.style.top = `${window.scrollY + rect.top - 40}px`;
-      translitBar.style.left = `${window.scrollX + rect.left}px`;
-      translitBar.style.display = 'block';
-    }
-
-    function hideTranslitBar() {
-      const translitBar = document.getElementById('translit-bar');
-      translitBar.style.display = 'none';
-      currentInputBuffer = "";
-      suggestions = [];
-    }
-
-    function renderSuggestions() {
-      const translitBar = document.getElementById('translit-bar');
-      translitBar.innerHTML = suggestions.map((s, i) => 
-        `<span class="translit-option ${i === selectedIndex ? 'active' : ''}" onclick="selectCandidate('${s}')">${i + 1}. ${s}</span>`
-      ).join('');
-    }
-
-    function commitSuggestion(element, tamilText) {
-      const sel = window.getSelection();
-      if (sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        // Replace buffer english characters with converted Tamil text
-        for (let i = 0; i < currentInputBuffer.length; i++) {
-          document.execCommand('delete', false, null);
-        }
-        document.execCommand('insertText', false, tamilText);
-      }
-    }
-
-    function insertTextAtCursor(element, text) {
-      document.execCommand('insertText', false, text);
-    }
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>

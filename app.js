@@ -1,364 +1,182 @@
-/**
- * Paragraph-Level Tamil OCR Proofreading Tool - Application Logic
- * Fixed Transliteration Engine (Space, Enter, & Live Conversion)
- */
+let dataStore = [];
+let currentIndex = -1;
 
-let reviewData = [];
-let replacements = {};
-let activeTextareaId = null;
-let currentBookFilter = "ALL";
-
-// Comprehensive Phonetic Transliteration Map (Ordered by length descending)
 const TAMIL_MAP = [
     ["aai", "ஆய்"], ["aaw", "ஆவ்"], ["ee", "ஈ"], ["oo", "ஊ"], ["ai", "ஐ"], ["au", "ஔ"],
     ["kaa", "கா"], ["kii", "கீ"], ["koo", "கூ"], ["kai", "கை"], ["kau", "கௌ"],
-    ["ngaa", "ஙா"], ["ngii", "ஙீ"], ["ngoo", "ஙூ"], ["ngai", "ஙை"], ["ngau", "ஙௌ"],
-    ["chaa", "சா"], ["chii", "சீ"], ["choo", "சூ"], ["chai", "சை"], ["chau", "சௌ"],
-    ["njaa", "ஞா"], ["njii", "ஞீ"], ["njoo", "ஞூ"], ["njai", "ஞை"], ["njau", "ஞௌ"],
-    ["taa", "டா"], ["tii", "டீ"], ["too", "டூ"], ["tai", "டை"], ["tau", "டௌ"],
-    ["naa", "ணா"], ["nii", "ணீ"], ["noo", "ணூ"], ["nai", "ணை"], ["nau", "ணௌ"],
-    ["thaa", "தா"], ["thii", "தீ"], ["thoo", "தூ"], ["thai", "தை"], ["thau", "தௌ"],
-    ["paa", "பா"], ["pii", "பீ"], ["poo", "பூ"], ["pai", "பை"], ["pau", "பௌ"],
-    ["maa", "மா"], ["mii", "மீ"], ["moo", "மூ"], ["mai", "மை"], ["mau", "மௌ"],
-    ["yaa", "யா"], ["yii", "யீ"], ["yoo", "யூ"], ["yai", "யை"], ["yau", "யௌ"],
-    ["raa", "ரா"], ["rii", "ரீ"], ["roo", "ரூ"], ["rai", "ரை"], ["rau", "ரௌ"],
-    ["laa", "லா"], ["lii", "லீ"], ["loo", "லூ"], ["lai", "லை"], ["lau", "லௌ"],
-    ["vaa", "வா"], ["vii", "வீ"], ["voo", "வூ"], ["vai", "வை"], ["vau", "வௌ"],
-    ["zhaa", "ழா"], ["zhii", "ழீ"], ["zhoo", "ழூ"], ["zhai", "ழை"], ["zhau", "ழௌ"],
     ["aa", "ஆ"], ["ii", "ஈ"], ["uu", "ஊ"], ["ea", "ஏ"], ["oa", "ஓ"],
     ["ka", "க"], ["ki", "கி"], ["ku", "கு"], ["ke", "கெ"], ["ko", "கொ"],
-    ["nga", "ங"], ["ngi", "ஙி"], ["ngu", "ஙு"], ["nge", "ஙெ"], ["ngo", "ஙொ"],
-    ["cha", "ச"], ["chi", "சி"], ["chu", "சு"], ["che", "செ"], ["cho", "சொ"],
-    ["nja", "ஞ"], ["nji", "ஞி"], ["nju", "ஞு"], ["nje", "ஞெ"], ["njo", "ஞொ"],
-    ["ta", "ட"], ["ti", "டி"], ["tu", "டு"], ["te", "டெ"], ["to", "டொ"],
-    ["na", "ண"], ["ni", "ணி"], ["nu", "ணு"], ["ne", "ணெ"], ["no", "ணொ"],
-    ["tha", "த"], ["thi", "தி"], ["thu", "து"], ["the", "தெ"], ["tho", "தொ"],
-    ["pa", "ப"], ["pi", "பி"], ["pu", "பு"], ["pe", "பெ"], ["po", "பொ"],
-    ["ma", "ம"], ["mi", "மி"], ["mu", "மு"], ["me", "மெ"], ["mo", "மொ"],
-    ["ya", "ய"], ["yi", "யி"], ["yu", "யு"], ["ye", "யெ"], ["yo", "யொ"],
-    ["ra", "ர"], ["ri", "ரி"], ["ru", "ரு"], ["re", "ரெ"], ["ro", "ரொ"],
-    ["la", "ல"], ["li", "லி"], ["lu", "லு"], ["le", "லெ"], ["lo", "லொ"],
-    ["va", "வ"], ["vi", "வி"], ["vu", "வு"], ["ve", "வெ"], ["vo", "வொ"],
-    ["zha", "ழ"], ["zhi", "ழி"], ["zhu", "ழு"], ["zhe", "ழெ"], ["zho", "ழொ"],
     ["a", "அ"], ["i", "இ"], ["u", "உ"], ["e", "எ"], ["o", "ஒ"],
     ["k", "க்"], ["ng", "ங்"], ["ch", "ச்"], ["nj", "ஞ்"], ["t", "ட்"],
     ["th", "த்"], ["p", "ப்"], ["m", "ம்"], ["y", "ய்"], ["r", "ர்"],
     ["l", "ல்"], ["v", "வ்"], ["zh", "ழ்"]
 ];
 
+const TAMIL_KEYS = {
+  vowels: ['அ', 'ஆ', 'இ', 'ஈ', 'உ', 'ஊ', 'எ', 'ஏ', 'ஐ', 'ஒ', 'ஓ', 'ஔ', 'ஃ'],
+  consonants: ['க', 'ங', 'ச', 'ஞ', 'ட', 'ண', 'த', 'ந', 'ப', 'ம', 'ய', 'ர', 'ல', 'வ', 'ழ', 'ள', 'ற', 'ன'],
+  modifiers: ['ா', 'ி', 'ீ', 'ு', 'ூ', 'ெ', 'ே', 'ை', 'ொ', 'ோ', 'ௌ', '்']
+};
+
 document.addEventListener('DOMContentLoaded', () => {
-    const fileInput = document.getElementById('jsonFileInput');
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileUpload);
-    }
+  renderVirtualKeyboard();
+  autoLoad();
 });
 
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (evt) {
-        parseAndLoadJSON(evt.target.result);
-    };
-    reader.onerror = function () {
-        alert("Error reading file!");
-    };
-    reader.readAsText(file);
+function autoLoad() {
+  fetch('words_for_review.json')
+    .then(res => res.json())
+    .then(data => {
+      loadDataStore(data);
+    }).catch(() => {});
 }
 
-function loadPastedJSON() {
-    const rawText = document.getElementById('jsonPasteArea').value.trim();
-    if (!rawText) {
-        alert("Please paste JSON content first!");
-        return;
-    }
-    parseAndLoadJSON(rawText);
+function loadDataStore(parsedData) {
+  const rawList = Array.isArray(parsedData) ? parsedData : [parsedData];
+  dataStore = rawList.map((item, idx) => ({
+    id: item.id || idx + 1,
+    text: item.raw_paragraph || item.paragraph || item.text || "",
+    status: item.status || "pending",
+    image_url: item.image_url || ""
+  }));
+
+  document.getElementById('saveBtn').disabled = false;
+  renderSidebar();
+  if (dataStore.length > 0) loadSegment(0);
 }
 
-function parseAndLoadJSON(jsonString) {
+window.handleFileSelect = function (event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
     try {
-        const parsed = JSON.parse(jsonString);
-        if (!Array.isArray(parsed)) {
-            alert("JSON format error: Expected a list/array of items `[...]`.");
-            return;
-        }
-        reviewData = parsed;
-        populateBookSelector();
-        renderCards();
+      const parsed = JSON.parse(e.target.result);
+      loadDataStore(parsed);
     } catch (err) {
-        alert("Invalid JSON structure! " + err.message);
+      alert("Error reading file: " + err.message);
     }
+  };
+  reader.readAsText(file);
+};
+
+function renderSidebar() {
+  const listEl = document.getElementById('pasuramList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  let doneCount = 0;
+  dataStore.forEach((item, index) => {
+    if (item.status === 'done') doneCount++;
+
+    const li = document.createElement('li');
+    li.className = `list-group-item ${index === currentIndex ? 'active' : ''}`;
+    li.onclick = () => loadSegment(index);
+
+    const title = document.createElement('span');
+    title.textContent = `${index + 1}. ${item.text.substring(0, 18)}...`;
+
+    li.appendChild(title);
+    listEl.appendChild(li);
+  });
+
+  document.getElementById('progressTracker').textContent = `${doneCount}/${dataStore.length} Done`;
 }
 
-function populateBookSelector() {
-    const filterSection = document.getElementById('filterSection');
-    const bookSelect = document.getElementById('bookSelect');
-    if (!filterSection || !bookSelect) return;
+function loadSegment(index) {
+  if (index < 0 || index >= dataStore.length) return;
+  saveCurrentEditorState();
 
-    const books = new Set();
-    reviewData.forEach(item => {
-        const fileName = item.file || item.filename || item.source_file || 'Unknown Book';
-        books.add(fileName);
-    });
+  currentIndex = index;
+  const item = dataStore[currentIndex];
 
-    bookSelect.innerHTML = '<option value="ALL">Show All Books (' + reviewData.length + ' items)</option>';
-    books.forEach(book => {
-        const count = reviewData.filter(i => (i.file || i.filename || i.source_file || 'Unknown Book') === book).length;
-        const opt = document.createElement('option');
-        opt.value = book;
-        opt.textContent = `${book} (${count} items)`;
-        bookSelect.appendChild(opt);
-    });
+  document.getElementById('pasuramEditor').value = item.text;
+  document.getElementById('currentEditingLabel').textContent = `Editing Segment #${currentIndex + 1}`;
+  document.getElementById('pageViewer').src = item.image_url || '';
 
-    filterSection.style.display = 'flex';
+  document.getElementById('prevBtn').disabled = currentIndex === 0;
+  document.getElementById('nextBtn').disabled = currentIndex === dataStore.length - 1;
+  document.getElementById('markDoneBtn').disabled = false;
+  document.getElementById('markDoneBtn').textContent = item.status === 'done' ? 'Mark Pending' : 'Mark Done';
+
+  renderSidebar();
 }
 
-function filterByBook() {
-    const bookSelect = document.getElementById('bookSelect');
-    currentBookFilter = bookSelect ? bookSelect.value : 'ALL';
-    renderCards();
+function saveCurrentEditorState() {
+  if (currentIndex >= 0 && currentIndex < dataStore.length) {
+    dataStore[currentIndex].text = document.getElementById('pasuramEditor').value;
+  }
 }
 
-function renderCards() {
-    const container = document.getElementById('reviewContainer');
-    if (!container) return;
+window.navigate = function (dir) {
+  loadSegment(currentIndex + dir);
+};
 
-    container.innerHTML = '';
+window.toggleDoneState = function () {
+  if (currentIndex < 0) return;
+  dataStore[currentIndex].status = dataStore[currentIndex].status === 'done' ? 'pending' : 'done';
+  loadSegment(currentIndex);
+};
 
-    const filteredData = currentBookFilter === 'ALL'
-        ? reviewData
-        : reviewData.filter(item => (item.file || item.filename || item.source_file || 'Unknown Book') === currentBookFilter);
+window.handleTransliterationKeyDown = function (event) {
+  if (event.key === ' ' || event.key === 'Enter') {
+    const editor = event.target;
+    const pos = editor.selectionStart;
+    const before = editor.value.substring(0, pos);
+    const after = editor.value.substring(pos);
 
-    if (!Array.isArray(filteredData) || filteredData.length === 0) {
-        container.innerHTML = '<p style="text-align:center; padding: 20px; color: #666; font-size:1.1em;">No pending items for review!</p>';
-        return;
-    }
-
-    filteredData.forEach((item, index) => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.id = `card-${index}`;
-
-        const bookName = item.file || item.filename || item.source_file || 'Unknown';
-        const flaggedWord = item.word || item.flagged_word || 'N/A';
-        const previewPara = item.paragraph || item.context_paragraph || item.raw_paragraph || '';
-        const editablePara = item.raw_paragraph || item.paragraph || '';
-
-        card.innerHTML = `
-            <div class="card-header">
-                <span><strong>Book / File:</strong> ${escapeHtml(bookName)}</span>
-                <span>Flagged Word: <span class="flagged-word-badge">${escapeHtml(flaggedWord)}</span></span>
-            </div>
-            
-            <label>Context Paragraph (Flagged Word Highlighted):</label>
-            <div class="paragraph-preview">${previewPara}</div>
-
-            <label>Correct Paragraph In-Place (Type in English + Press Space to Transliterate):</label>
-            <textarea 
-                id="edit-para-${index}" 
-                class="editable-paragraph" 
-                onkeydown="handleTransliterationKeyDown(event)"
-                onfocus="activeTextareaId='edit-para-${index}'"
-            >${escapeHtml(editablePara)}</textarea>
-
-            <div class="actions">
-                <button class="btn btn-save" onclick="saveCorrection(${index}, '${escapeHtml(flaggedWord)}')">Save Correction</button>
-                <button class="btn btn-skip" onclick="skipItem(${index})">Ignore / Keep Original</button>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-}
-
-function transliterateWord(input) {
-    let text = input.toLowerCase();
-    for (let [eng, tam] of TAMIL_MAP) {
-        const regex = new RegExp(eng, 'g');
-        text = text.replace(regex, tam);
-    }
-    return text;
-}
-
-/**
- * Enhanced KeyDown Transliteration Handler
- * Converts the last English word immediately when Spacebar, Enter, or Tab is pressed.
- */
-function handleTransliterationKeyDown(event) {
-    if (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab') {
-        const textarea = event.target;
-        const cursorPosition = textarea.selectionStart;
-
-        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
-        const textAfterCursor = textarea.value.substring(cursorPosition);
-
-        // Match the last active word before cursor containing English characters
-        const match = textBeforeCursor.match(/([a-zA-Z]+)$/);
-
-        if (match) {
-            const englishWord = match[1];
-            const tamilWord = transliterateWord(englishWord);
-
-            const newTextBefore = textBeforeCursor.substring(0, textBeforeCursor.length - englishWord.length) + tamilWord;
-
-            textarea.value = newTextBefore + textAfterCursor;
-
-            // Restore correct cursor offset
-            const newCursorPos = newTextBefore.length;
-            textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+    const words = before.split(/(\s+)/);
+    if (words.length > 0) {
+      const idx = words.length - 2;
+      if (idx >= 0 && /^[a-zA-Z]+$/.test(words[idx])) {
+        let t = words[idx].toLowerCase();
+        for (let [eng, tam] of TAMIL_MAP) {
+          t = t.replace(new RegExp(eng, 'g'), tam);
         }
+        words[idx] = t;
+        editor.value = words.join('') + after;
+        editor.selectionStart = editor.selectionEnd = pos;
+      }
     }
-}
+  }
+};
 
-function saveCorrection(index, originalWord) {
-    const textarea = document.getElementById(`edit-para-${index}`);
-    if (!textarea) return;
+window.insertAtCursor = function (text) {
+  const editor = document.getElementById('pasuramEditor');
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  editor.value = editor.value.substring(0, start) + text + editor.value.substring(end);
+  editor.setSelectionRange(start + text.length, start + text.length);
+  editor.focus();
+};
 
-    const updatedParagraph = textarea.value;
-    const item = reviewData[index] || {};
-
-    replacements[originalWord] = {
-        file: item.file || item.filename || item.source_file || "Unknown",
-        original_paragraph: item.raw_paragraph || item.paragraph || "",
-        corrected_paragraph: updatedParagraph
-    };
-
-    const cardElement = document.getElementById(`card-${index}`);
-    if (cardElement) {
-        cardElement.style.display = 'none';
-    }
-}
-
-function skipItem(index) {
-    const cardElement = document.getElementById(`card-${index}`);
-    if (cardElement) {
-        cardElement.style.display = 'none';
-    }
-}
-
-function exportReplacements() {
-    if (Object.keys(replacements).length === 0) {
-        alert("No corrections made yet!");
-        return;
-    }
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(replacements, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", "replacements.json");
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-}
-
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-
-
-let currentInputBuffer = "";
-let suggestions = [];
-let selectedIndex = 0;
-let activeElement = null;
-
-// Google Input Tools Transliteration API Fetcher
-async function fetchTamilTransliteration(text) {
-    if (!text.trim()) return [];
-    const url = `https://inputtools.google.com/request?text=${encodeURIComponent(text)}&itc=ta-t-i0-und&num=5`;
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        if (data[0] === "SUCCESS") {
-            return data[1][0][1]; // Array of transliterated candidates
-        }
-    } catch (err) {
-        console.error("Transliteration error:", err);
-    }
-    return [];
-}
-
-// Attach listener to editable elements
-function setupTransliteration(element) {
-    element.addEventListener('keydown', async (e) => {
-        const translitBar = document.getElementById('translit-bar');
-
-        if (e.key >= 'a' && e.key <= 'z' || e.key >= 'A' && e.key <= 'Z') {
-            currentInputBuffer += e.key;
-            await updateSuggestions(element);
-        } else if (e.key === 'Backspace' && currentInputBuffer.length > 0) {
-            currentInputBuffer = currentInputBuffer.slice(0, -1);
-            if (currentInputBuffer.length > 0) {
-                await updateSuggestions(element);
-            } else {
-                hideTranslitBar();
-            }
-        } else if ((e.key === ' ' || e.key === 'Enter') && currentInputBuffer.length > 0) {
-            e.preventDefault(); // Stop raw space insert
-            commitSuggestion(element, suggestions[selectedIndex] || currentInputBuffer);
-            if (e.key === ' ') insertTextAtCursor(element, ' ');
-            hideTranslitBar();
-        } else if (e.key === 'ArrowRight' && suggestions.length > 0) {
-            selectedIndex = (selectedIndex + 1) % suggestions.length;
-            renderSuggestions();
-            e.preventDefault();
-        } else if (e.key === 'ArrowLeft' && suggestions.length > 0) {
-            selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
-            renderSuggestions();
-            e.preventDefault();
-        }
+function renderVirtualKeyboard() {
+  const renderRow = (id, keys) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '';
+    keys.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key';
+      btn.textContent = k;
+      btn.onclick = () => insertAtCursor(k);
+      el.appendChild(btn);
     });
+  };
+
+  renderRow('vowelsRow', TAMIL_KEYS.vowels);
+  renderRow('consonantsRow', TAMIL_KEYS.consonants);
+  renderRow('modifiersRow', TAMIL_KEYS.modifiers);
 }
 
-async function updateSuggestions(element) {
-    suggestions = await fetchTamilTransliteration(currentInputBuffer);
-    if (suggestions.length > 0) {
-        selectedIndex = 0;
-        showTranslitBar(element);
-        renderSuggestions();
-    } else {
-        hideTranslitBar();
-    }
-}
-
-function showTranslitBar(element) {
-    const translitBar = document.getElementById('translit-bar');
-    const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
-    translitBar.style.top = `${window.scrollY + rect.top - 40}px`;
-    translitBar.style.left = `${window.scrollX + rect.left}px`;
-    translitBar.style.display = 'block';
-}
-
-function hideTranslitBar() {
-    const translitBar = document.getElementById('translit-bar');
-    translitBar.style.display = 'none';
-    currentInputBuffer = "";
-    suggestions = [];
-}
-
-function renderSuggestions() {
-    const translitBar = document.getElementById('translit-bar');
-    translitBar.innerHTML = suggestions.map((s, i) =>
-        `<span class="translit-option ${i === selectedIndex ? 'active' : ''}" onclick="selectCandidate('${s}')">${i + 1}. ${s}</span>`
-    ).join('');
-}
-
-function commitSuggestion(element, tamilText) {
-    const sel = window.getSelection();
-    if (sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        // Replace buffer english characters with converted Tamil text
-        for (let i = 0; i < currentInputBuffer.length; i++) {
-            document.execCommand('delete', false, null);
-        }
-        document.execCommand('insertText', false, tamilText);
-    }
-}
-
-function insertTextAtCursor(element, text) {
-    document.execCommand('insertText', false, text);
-}
+window.saveFile = function () {
+  saveCurrentEditorState();
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataStore, null, 2));
+  const anchor = document.createElement('a');
+  anchor.setAttribute("href", dataStr);
+  anchor.setAttribute("download", "replacements.json");
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
