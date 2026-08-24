@@ -22,24 +22,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils tesseract-ocr curl python3 parallel
 
-      - name: Make Scripts Executable
-        run: chmod +x ./ocr_tamil_pdf.sh || true
-
       - name: Pre-download Tamil and Sanskrit Tesseract Language Packs
         run: |
-          sudo curl -sSL -o /usr/share/tesseract-ocr/4.00/tessdata/tam.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata" || \
-          sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/tam.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata"
+          # Detect Tesseract tessdata directory dynamically
+          TESS_DIR="/usr/share/tesseract-ocr/4.00/tessdata"
+          if [ ! -d "$TESS_DIR" ]; then
+            TESS_DIR="/usr/share/tesseract-ocr/5/tessdata"
+          fi
           
-          sudo curl -sSL -o /usr/share/tesseract-ocr/4.00/tessdata/san.traineddata \
-            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/san.traineddata" || \
-          sudo curl -sSL -o /usr/share/tesseract-ocr/5/tessdata/san.traineddata \
+          sudo curl -sSL -o "$TESS_DIR/tam.traineddata" \
+            "https://github.com/tesseract-ocr/tessdata_fast/raw/main/tam.traineddata"
+          sudo curl -sSL -o "$TESS_DIR/san.traineddata" \
             "https://github.com/tesseract-ocr/tessdata_fast/raw/main/san.traineddata"
 
       - name: Set up Python
@@ -52,9 +50,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Process Batch OCR
+      - name: Make Scripts Executable
         run: |
-          python3 process_batch.py
+          chmod +x ./ocr_tamil_pdf.sh || true
+          chmod +x ./process_booklist.sh || true
+
+      - name: Process Batch OCR / Booklist Extraction
+        run: |
+          if [ -f "./process_booklist.sh" ]; then
+            ./process_booklist.sh
+          elif [ -f "process_batch.py" ]; then
+            python3 process_batch.py
+          fi
 
       - name: Update Lexicon & Extract Review Data
         run: |
@@ -65,10 +72,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Add extracted texts, rendered page images, and review JSON files
           git add output_texts/ master_lexicon.json words_for_review.json 2>/dev/null || true
 
           if ! git diff --staged --quiet; then
-            git commit -m "Automated OCR batch extraction [skip ci]"
+            git commit -m "Automated OCR batch extraction & page rendering [skip ci]"
             git push
           else
             echo "No changes to commit."
