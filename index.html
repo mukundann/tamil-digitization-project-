@@ -1,247 +1,96 @@
 <!DOCTYPE html>
 <html lang="ta">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tamil OCR Split-View Editor</title>
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+    <meta charset="UTF-8">
+    <title>Tamil Digitization - Multi-Book Proofreader</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f4f6f9; }
+        
+        /* Top Navigation Header */
+        .header { background: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .controls { display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 6px 12px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn:hover { background: #219150; }
+        .btn-reset { background: #e74c3c; }
+        .btn-reset:hover { background: #c0392b; }
+        select { padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 0.95em; outline: none; }
 
-    body {
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: #f4f6f9;
-    }
+        /* Split Screen Container */
+        .container { flex: 1; display: flex; overflow: hidden; }
 
-    header {
-      background: #2c3e50;
-      color: white;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        /* Left Pane: Page Image Viewer */
+        .left-pane { flex: 1; background: #525659; display: flex; flex-direction: column; border-right: 2px solid #ccc; }
+        .image-toolbar { background: #333; color: white; padding: 8px; display: flex; justify-content: center; gap: 15px; align-items: center; }
+        .image-toolbar input { width: 60px; text-align: center; font-weight: bold; padding: 2px; }
+        .image-viewport { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 15px; }
+        .image-viewport img { max-width: 100%; height: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.3); background: white; }
 
-    .header-controls {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
+        /* Right Pane: Scrollable Text Editor & Keyboard */
+        .right-pane { flex: 1; display: flex; flex-direction: column; background: #fdf6e3; padding: 15px; position: relative; }
+        .editor-header { font-size: 0.95em; color: #555; margin-bottom: 8px; font-weight: bold; display: flex; justify-content: space-between; }
+        #textEditor { flex: 1; width: 100%; font-size: 1.15em; line-height: 1.8; padding: 15px; border: 1px solid #d3d3d3; border-radius: 4px; font-family: 'Segoe UI', sans-serif; resize: none; outline: none; background: white; overflow-y: auto; }
 
-    .container {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .sidebar {
-      width: 300px;
-      background: #fff;
-      border-right: 1px solid #ccc;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .sidebar-header {
-      padding: 12px;
-      background: #e9ecef;
-      font-weight: bold;
-      border-bottom: 1px solid #ccc;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .list-group {
-      overflow-y: auto;
-      flex: 1;
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    .list-group-item {
-      padding: 10px 12px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    .list-group-item.active {
-      background-color: #007bff;
-      color: white;
-    }
-
-    .main-split-content {
-      flex: 1;
-      display: flex;
-      width: 100%;
-    }
-
-    .image-panel {
-      flex: 1;
-      background: #333;
-      padding: 10px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: auto;
-    }
-
-    .image-panel img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
-
-    .editor-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 15px;
-      background: #fff;
-      border-left: 1px solid #ccc;
-      overflow-y: auto;
-    }
-
-    textarea {
-      width: 100%;
-      height: 220px;
-      font-size: 18px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      resize: vertical;
-    }
-
-    .btn {
-      padding: 8px 14px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    .btn-primary {
-      background: #28a745;
-      color: white;
-    }
-
-    .btn-secondary {
-      background: #007bff;
-      color: white;
-    }
-
-    .btn-done {
-      background: #17a2b8;
-      color: white;
-    }
-
-    .btn-nav {
-      background: #6c757d;
-      color: white;
-    }
-
-    .keyboard-container {
-      background: #e9ecef;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 8px;
-      margin-top: 10px;
-    }
-
-    .keyboard-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-bottom: 4px;
-    }
-
-    .key {
-      background: white;
-      border: 1px solid #ced4da;
-      padding: 5px 8px;
-      font-size: 15px;
-      cursor: pointer;
-    }
-
-    .key:hover {
-      background: #007bff;
-      color: white;
-    }
-  </style>
+        /* Virtual Tamil Keyboard Styling */
+        .keyboard-container { margin-top: 10px; background: #eaeaea; padding: 10px; border-radius: 6px; border: 1px solid #ccc; max-height: 180px; overflow-y: auto; }
+        .keyboard-section-title { font-size: 0.8em; font-weight: bold; color: #444; margin: 4px 0 2px 0; }
+        .keyboard-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+        .key-btn { padding: 5px 8px; font-size: 1em; background: white; border: 1px solid #bbb; border-radius: 3px; cursor: pointer; min-width: 32px; text-align: center; }
+        .key-btn:hover { background: #3498db; color: white; border-color: #2980b9; }
+    </style>
 </head>
-
 <body>
-  <header>
-    <h2>Tamil OCR Split-View Editor</h2>
-    <div class="header-controls">
-      <input type="file" id="jsonFileInput" accept=".js, .json" style="display: none;"
-        onchange="handleFileSelect(event)">
-      <button class="btn btn-secondary" onclick="document.getElementById('jsonFileInput').click()">Open File</button>
-      <button class="btn btn-primary" id="saveBtn" onclick="saveFile()" disabled>Save File Back</button>
-    </div>
-  </header>
 
-  <div class="container">
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <span>Segments</span>
-        <span id="progressTracker">0/0 Done</span>
-      </div>
-      <div class="filter-section">
-        <label for="bookSelect">Book:</label>
-        <select id="bookSelect" onchange="loadBookPages()">
-          <option value="">-- Select Book --</option>
-        </select>
-
-        <label for="pageSelect" style="margin-left: 15px;">Page:</label>
-        <select id="pageSelect" onchange="loadPageData()">
-          <option value="">-- Select Page --</option>
-        </select>
-      </div>
-      <ul class="list-group" id="pasuramList">
-        <li class="list-group-item">Load a file to begin...</li>
-      </ul>
+    <div class="header">
+        <div class="controls">
+            <label for="bookSelect" style="font-weight:bold;">Book:</label>
+            <select id="bookSelect" onchange="switchBook(this.value)">
+                <option value="sr194">sr194</option>
+            </select>
+        </div>
+        <div class="controls">
+            <input type="file" id="txtFileInput" accept=".txt" title="Load Custom Text File">
+            <button class="btn" onclick="exportText()">Download Corrected Text</button>
+            <button class="btn btn-reset" onclick="clearCurrentBookProgress()">Reset Book Progress</button>
+            <button class="btn" onclick="saveFileDirectly()">Save File Back</button>
+        </div>
     </div>
 
-    <div class="main-split-content">
-      <div class="image-panel">
-        <img id="pageViewer" src="" alt="Select a segment to load original page image">
-      </div>
-
-      <div class="editor-panel">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-          <strong id="currentEditingLabel">Select a segment:</strong>
-          <div>
-            <button class="btn btn-done" id="markDoneBtn" onclick="toggleDoneState()" disabled>Mark as Done</button>
-            <button class="btn btn-nav" id="prevBtn" onclick="navigate(-1)" disabled>Prev</button>
-            <button class="btn btn-nav" id="nextBtn" onclick="navigate(1)" disabled>Next</button>
-          </div>
+    <div class="container">
+        <!-- Left Pane: Page-wise Image Viewer -->
+        <div class="left-pane">
+            <div class="image-toolbar">
+                <button class="btn" style="padding: 4px 8px;" onclick="changePage(-1)">◀ Prev Page</button>
+                <span>Page <input type="number" id="pageNumInput" value="1" min="1" onchange="goToPage(this.value)"></span>
+                <button class="btn" style="padding: 4px 8px;" onclick="changePage(1)">Next Page ▶</button>
+            </div>
+            <div class="image-viewport">
+                <img id="pageViewer" src="" alt="Loading page image...">
+            </div>
         </div>
 
-        <textarea id="pasuramEditor"
-          placeholder="Loaded text will appear here... (Type English + Space to transliterate)"
-          onkeydown="handleTransliterationKeyDown(event)"></textarea>
+        <!-- Right Pane: Scrollable Text Editor & Keyboard -->
+        <div class="right-pane">
+            <div class="editor-header">
+                <span>OCR Text Editor (<span id="currentBookLabel">sr194</span>):</span>
+                <span id="posIndicator">Line: 1 | Col: 1</span>
+            </div>
+            <textarea id="textEditor" placeholder="Loading text..." onkeyup="handleTransliteration(event)"></textarea>
 
-        <div class="keyboard-container">
-          <div style="font-size:12px; font-weight:bold; margin-bottom:5px;">Virtual Tamil Keyboard</div>
-          <div class="keyboard-row" id="vowelsRow"></div>
-          <div class="keyboard-row" id="consonantsRow"></div>
-          <div class="keyboard-row" id="modifiersRow"></div>
+            <!-- Virtual Tamil Keyboard -->
+            <div class="keyboard-container">
+                <div class="keyboard-section-title">உயிரெழுத்துக்கள் (Vowels)</div>
+                <div class="keyboard-row" id="vowelKeys"></div>
+
+                <div class="keyboard-section-title">மெய்யெழுத்துக்கள் (Consonants)</div>
+                <div class="keyboard-row" id="consonantKeys"></div>
+
+                <div class="keyboard-section-title">உயிர்மெய் குறிகள் (Diacritics & Modifiers)</div>
+                <div class="keyboard-row" id="diacriticKeys"></div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 
-  <script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
-
 </html>

@@ -1,290 +1,290 @@
 /**
- * Tamil OCR Proofreader Engine - Integrated Application Logic
- * Features: Book/Page Selectors, Virtual Keyboard, Phonetic Transliteration, Side-by-Side Image Sync, State Tracking
+ * Tamil Digitization - Dynamic Multi-Book Engine
+ * Image Path Target: output_texts/<book>/images/page-<num>.png
  */
 
-let dataStore = [];
-let currentIndex = -1;
+const AVAILABLE_BOOKS = ["sr194"];
 
-// Phonetic Transliteration Mapping Table
+let currentBook = AVAILABLE_BOOKS[0];
+let currentPage = 1;
+
+const editor = document.getElementById('textEditor');
+const pageImg = document.getElementById('pageViewer');
+
+// Storage keys per book
+const getStorageKeyText = (book) => `tamil_ocr_text_${book}`;
+const getStorageKeyScroll = (book) => `tamil_ocr_scroll_${book}`;
+const getStorageKeyPage = (book) => `tamil_ocr_page_${book}`;
+
+// Transliteration Dictionary
 const TAMIL_MAP = [
     ["aai", "ஆய்"], ["aaw", "ஆவ்"], ["ee", "ஈ"], ["oo", "ஊ"], ["ai", "ஐ"], ["au", "ஔ"],
     ["kaa", "கா"], ["kii", "கீ"], ["koo", "கூ"], ["kai", "கை"], ["kau", "கௌ"],
+    ["ngaa", "ஙா"], ["ngii", "ஙீ"], ["ngoo", "ஙூ"], ["ngai", "ஙை"], ["ngau", "ஙௌ"],
+    ["chaa", "சா"], ["chii", "சீ"], ["choo", "சூ"], ["chai", "சை"], ["chau", "சௌ"],
+    ["njaa", "ஞா"], ["njii", "ஞீ"], ["njoo", "ஞூ"], ["njai", "ஞை"], ["njau", "ஞௌ"],
+    ["taa", "டா"], ["tii", "டீ"], ["too", "டூ"], ["tai", "டை"], ["tau", "டௌ"],
+    ["naa", "ணா"], ["nii", "ணீ"], ["noo", "ணூ"], ["nai", "ணை"], ["nau", "ணௌ"],
+    ["thaa", "தா"], ["thii", "தீ"], ["thoo", "தூ"], ["thai", "தை"], ["thau", "தௌ"],
+    ["paa", "பா"], ["pii", "பீ"], ["poo", "பூ"], ["pai", "பை"], ["pau", "பௌ"],
+    ["maa", "மா"], ["mii", "மீ"], ["moo", "மூ"], ["mai", "மை"], ["mau", "மௌ"],
+    ["yaa", "யா"], ["yii", "யீ"], ["yoo", "யூ"], ["yai", "யை"], ["yau", "யௌ"],
+    ["raa", "ரா"], ["rii", "ரீ"], ["roo", "ரூ"], ["rai", "ரை"], ["rau", "ரௌ"],
+    ["laa", "லா"], ["lii", "லீ"], ["loo", "லூ"], ["lai", "லை"], ["lau", "லௌ"],
+    ["vaa", "வா"], ["vii", "வீ"], ["voo", "வூ"], ["vai", "வை"], ["vau", "வௌ"],
+    ["zhaa", "ழா"], ["zhii", "ழீ"], ["zhoo", "ழூ"], ["zhai", "ழை"], ["zhau", "ழௌ"],
+    ["laaa", "ளா"], ["lii", "ளீ"], ["loo", "ளூ"], ["lai", "ளை"], ["lau", "ளௌ"],
+
     ["aa", "ஆ"], ["ii", "ஈ"], ["uu", "ஊ"], ["ea", "ஏ"], ["oa", "ஓ"],
     ["ka", "க"], ["ki", "கி"], ["ku", "கு"], ["ke", "கெ"], ["ko", "கொ"],
+    ["nga", "ங"], ["ngi", "ஙி"], ["ngu", "ஙு"], ["nge", "ஙெ"], ["ngo", "ஙொ"],
+    ["cha", "ச"], ["chi", "சி"], ["chu", "சு"], ["che", "செ"], ["cho", "சொ"],
+    ["nja", "ஞ"], ["nji", "ஞி"], ["nju", "ஞு"], ["nje", "ஞெ"], ["njo", "ஞொ"],
+    ["ta", "ட"], ["ti", "டி"], ["tu", "டு"], ["te", "டெ"], ["to", "டொ"],
+    ["na", "ண"], ["ni", "ணி"], ["nu", "ணு"], ["ne", "ணெ"], ["no", "ணொ"],
+    ["tha", "த"], ["thi", "தி"], ["thu", "து"], ["the", "தெ"], ["tho", "தொ"],
+    ["pa", "ப"], ["pi", "பி"], ["pu", "பு"], ["pe", "பெ"], ["po", "பொ"],
+    ["ma", "ம"], ["mi", "மி"], ["mu", "மூ"], ["me", "மெ"], ["mo", "மொ"],
+    ["ya", "ய"], ["yi", "யி"], ["yu", "யு"], ["ye", "யெ"], ["yo", "யொ"],
+    ["ra", "ர"], ["ri", "ரி"], ["ru", "ரு"], ["re", "ரெ"], ["ro", "ரொ"],
+    ["la", "ல"], ["li", "லி"], ["lu", "லு"], ["le", "லெ"], ["lo", "லொ"],
+    ["va", "வ"], ["vi", "வி"], ["vu", "வு"], ["ve", "வெ"], ["vo", "வொ"],
+    ["zha", "ழ"], ["zhi", "ழி"], ["zhu", "ழு"], ["zhe", "ழெ"], ["zho", "ழொ"],
+    ["ja", "ஜ"], ["ji", "ஜி"], ["ju", "ஜு"], ["ha", "ஹ"], ["hi", "ஹி"], ["hu", "ஹு"],
+
     ["a", "அ"], ["i", "இ"], ["u", "உ"], ["e", "எ"], ["o", "ஒ"],
     ["k", "க்"], ["ng", "ங்"], ["ch", "ச்"], ["nj", "ஞ்"], ["t", "ட்"],
     ["th", "த்"], ["p", "ப்"], ["m", "ம்"], ["y", "ய்"], ["r", "ர்"],
-    ["l", "ல்"], ["v", "வ்"], ["zh", "ழ்"]
+    ["l", "ல்"], ["v", "வ்"], ["zh", "ழ்"], ["j", "ஜ்"], ["h", "ஹ்"], ["s", "ஸ்"]
 ];
 
-// Virtual Keyboard Character Layouts
-const TAMIL_KEYS = {
-  vowels: ['அ', 'ஆ', 'இ', 'ஈ', 'உ', 'ஊ', 'எ', 'ஏ', 'ஐ', 'ஒ', 'ஓ', 'ஔ', 'ஃ'],
-  consonants: ['க', 'ங', 'ச', 'ஞ', 'ட', 'ண', 'த', 'ந', 'ப', 'ம', 'ய', 'ர', 'ல', 'வ', 'ழ', 'ள', 'ற', 'ன'],
-  modifiers: ['ா', 'ி', 'ீ', 'ு', 'ூ', 'ெ', 'ே', 'ை', 'ொ', 'ோ', 'ௌ', '்']
-};
-
 document.addEventListener('DOMContentLoaded', () => {
-  renderVirtualKeyboard();
-  autoLoad();
+    populateBookDropdown();
+
+    const savedBook = localStorage.getItem("last_selected_book");
+    if (savedBook && AVAILABLE_BOOKS.includes(savedBook)) {
+        currentBook = savedBook;
+        document.getElementById('bookSelect').value = currentBook;
+    }
+
+    loadBook(currentBook);
+    buildVirtualKeyboard();
 });
 
-/**
- * Attempts to auto-load root queue if available
- */
-function autoLoad() {
-  fetch('words_for_review.json')
-    .then(res => res.json())
-    .then(data => {
-      loadDataStore(data);
-    }).catch(() => {});
+function populateBookDropdown() {
+    const select = document.getElementById('bookSelect');
+    select.innerHTML = AVAILABLE_BOOKS.map(b => `<option value="${b}">${b}</option>`).join('');
 }
 
-/**
- * Normalizes raw JSON input into the internal application state
- */
-function loadDataStore(parsedData) {
-  const rawList = Array.isArray(parsedData) ? parsedData : [parsedData];
-  dataStore = rawList.map((item, idx) => ({
-    id: item.id || idx + 1,
-    text: item.raw_paragraph || item.paragraph || item.text || "",
-    word: item.word || "",
-    status: item.status || "pending",
-    image_url: item.page_image || item.image_url || ""
-  }));
-
-  const saveBtn = document.getElementById('saveBtn');
-  if (saveBtn) saveBtn.disabled = false;
-
-  renderSidebar();
-  if (dataStore.length > 0) loadSegment(0);
+function switchBook(bookId) {
+    currentBook = bookId;
+    localStorage.setItem("last_selected_book", bookId);
+    loadBook(bookId);
 }
 
-/**
- * Handles manual JSON file uploads
- */
-window.handleFileSelect = function (event) {
-  const file = event.target.files[0];
-  if (!file) return;
+function loadBook(bookId) {
+    document.getElementById('currentBookLabel').textContent = bookId;
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
+    const savedPage = localStorage.getItem(getStorageKeyPage(bookId));
+    currentPage = savedPage ? parseInt(savedPage) : 1;
+    loadPageImage(currentPage);
+
+    const savedText = localStorage.getItem(getStorageKeyText(bookId));
+    if (savedText !== null) {
+        editor.value = savedText;
+        restoreScroll(bookId);
+    } else {
+        const textFilePath = `output_texts/${bookId}/${bookId}.txt`;
+        fetch(textFilePath)
+            .then(res => {
+                if (!res.ok) throw new Error("Could not fetch text file automatically");
+                return res.text();
+            })
+            .then(text => {
+                editor.value = text;
+                localStorage.setItem(getStorageKeyText(bookId), text);
+                editor.scrollTop = 0;
+            })
+            .catch(() => {
+                editor.value = "";
+            });
+    }
+}
+
+function restoreScroll(bookId) {
+    const savedScrollTop = localStorage.getItem(getStorageKeyScroll(bookId));
+    if (savedScrollTop !== null) {
+        setTimeout(() => {
+            editor.scrollTop = parseInt(savedScrollTop);
+        }, 100);
+    }
+}
+
+// --- Image Viewer Engine ---
+function loadPageImage(pageNum) {
+    // Looks inside output_texts/<book>/images/ page images
+    pageImg.src = `output_texts/${currentBook}/images/page-${pageNum}.png`;
+    document.getElementById('pageNumInput').value = pageNum;
+    localStorage.setItem(getStorageKeyPage(currentBook), pageNum);
+}
+
+function changePage(delta) {
+    const newPage = currentPage + delta;
+    if (newPage >= 1) {
+        currentPage = newPage;
+        loadPageImage(currentPage);
+    }
+}
+
+function goToPage(val) {
+    const pageNum = parseInt(val);
+    if (pageNum >= 1) {
+        currentPage = pageNum;
+        loadPageImage(currentPage);
+    }
+}
+
+// --- Text Persistence & Auto Save ---
+editor.addEventListener('input', () => {
+    localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+});
+
+editor.addEventListener('scroll', () => {
+    localStorage.setItem(getStorageKeyScroll(currentBook), editor.scrollTop);
+});
+
+editor.addEventListener('keyup', updatePosIndicator);
+editor.addEventListener('click', updatePosIndicator);
+
+function updatePosIndicator() {
+    const textLines = editor.value.substr(0, editor.selectionStart).split("\n");
+    const line = textLines.length;
+    const col = textLines[textLines.length - 1].length + 1;
+    document.getElementById('posIndicator').textContent = `Line: ${line} | Col: ${col}`;
+}
+
+document.getElementById('txtFileInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+        editor.value = evt.target.result;
+        localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+        editor.scrollTop = 0;
+        localStorage.setItem(getStorageKeyScroll(currentBook), 0);
+    };
+    reader.readAsText(file);
+});
+
+function clearCurrentBookProgress() {
+    if (confirm(`Reset saved edits, page number, and scroll position for '${currentBook}'?`)) {
+        localStorage.removeItem(getStorageKeyText(currentBook));
+        localStorage.removeItem(getStorageKeyScroll(currentBook));
+        localStorage.removeItem(getStorageKeyPage(currentBook));
+        loadBook(currentBook);
+    }
+}
+
+function exportText() {
+    const textContent = editor.value;
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const downloadLink = document.createElement('a');
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `${currentBook}_corrected.txt`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+
+// --- Transliteration & Virtual Keyboard ---
+function transliterateWord(input) {
+    let text = input.toLowerCase();
+    for (let [eng, tam] of TAMIL_MAP) {
+        const regex = new RegExp(eng, 'g');
+        text = text.replace(regex, tam);
+    }
+    return text;
+}
+
+function handleTransliteration(event) {
+    if (event.key === ' ' || event.key === 'Enter') {
+        const cursorPosition = editor.selectionStart;
+        const textBeforeCursor = editor.value.substring(0, cursorPosition);
+        const textAfterCursor = editor.value.substring(cursorPosition);
+
+        const words = textBeforeCursor.split(/(\s+)/);
+        if (words.length > 0) {
+            const lastWordIndex = words.length - 2;
+            if (lastWordIndex >= 0 && /^[a-zA-Z]+$/.test(words[lastWordIndex])) {
+                words[lastWordIndex] = transliterateWord(words[lastWordIndex]);
+                editor.value = words.join('') + textAfterCursor;
+                editor.selectionStart = editor.selectionEnd = cursorPosition;
+                localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+            }
+        }
+    }
+}
+
+function insertCharacter(char) {
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const val = editor.value;
+
+    editor.value = val.substring(0, start) + char + val.substring(end);
+    const newPos = start + char.length;
+    editor.setSelectionRange(newPos, newPos);
+    editor.focus();
+    localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+}
+
+function buildVirtualKeyboard() {
+    const vowels = ["அ", "ஆ", "இ", "ஈ", "உ", "ஊ", "எ", "ஏ", "ஐ", "ஒ", "ஓ", "ஔ", "ஃ"];
+    const consonants = ["க", "ங", "ச", "ஞ", "ட", "ண", "த", "ந", "ப", "ம", "ய", "ர", "ல", "வ", "ழ", "ள", "ற", "ன", "ஶ", "ஜ", "ஷ", "ஸ", "ஹ"];
+    const diacritics = ["்", "ா", "ி", "ீ", "ு", "ூ", "ெ", "ே", "ை", "ொ", "ோ", "ௌ"];
+
+    const renderRow = (containerId, chars) => {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        chars.forEach(char => {
+            const btn = document.createElement('button');
+            btn.className = 'key-btn';
+            btn.textContent = char;
+            btn.onclick = () => insertCharacter(char);
+            container.appendChild(btn);
+        });
+    };
+
+    renderRow('vowelKeys', vowels);
+    renderRow('consonantKeys', consonants);
+    renderRow('diacriticKeys', diacritics);
+}
+
+
+let originalFileHandle = null;
+
+async function saveFileDirectly() {
     try {
-      const parsed = JSON.parse(e.target.result);
-      loadDataStore(parsed);
+        // Prompt the user to pick the file directly from their project folder the first time
+        if (!originalFileHandle) {
+            [originalFileHandle] = await window.showOpenFilePicker({
+                types: [{
+                    description: 'Text Files',
+                    accept: { 'text/plain': ['.txt'] }
+                }]
+            });
+        }
+
+        // Request write access and save directly into the file on disk
+        const writable = await originalFileHandle.createWritable();
+        await writable.write(editor.value);
+        await writable.close();
+
+        alert(`Successfully saved updates back to the original file!`);
     } catch (err) {
-      alert("Error reading file: " + err.message);
-    }
-  };
-  reader.readAsText(file);
-};
-
-/**
- * Dynamic Book -> Page Queue Loaders
- */
-window.loadBookPages = function () {
-    const book = document.getElementById('bookSelect').value;
-    const pageSelect = document.getElementById('pageSelect');
-    if (!pageSelect) return;
-
-    pageSelect.innerHTML = '<option value="">-- Choose Page --</option>';
-    if (!book) return;
-
-    for (let i = 1; i <= 300; i++) {
-        const opt = document.createElement('option');
-        opt.value = `review_queue/${book}/page_${i}.json`;
-        opt.textContent = `Page ${i}`;
-        pageSelect.appendChild(opt);
-    }
-};
-
-window.loadPageData = async function () {
-    const pageJsonPath = document.getElementById('pageSelect').value;
-    if (!pageJsonPath) return;
-
-    try {
-        const response = await fetch(pageJsonPath);
-        if (response.ok) {
-            const data = await response.json();
-            loadDataStore(data);
-        } else {
-            alert("No review flags found for this page!");
-            dataStore = [];
-            renderSidebar();
+        if (err.name !== 'AbortError') {
+            console.error(err);
+            alert('Failed to save directly: ' + err.message);
         }
-    } catch (e) {
-        console.error("Error loading page data:", e);
     }
-};
-
-/**
- * Sidebar Tracker & Segment List Renderer
- */
-function renderSidebar() {
-  const listEl = document.getElementById('pasuramList');
-  if (!listEl) return;
-  listEl.innerHTML = '';
-
-  let doneCount = 0;
-  dataStore.forEach((item, index) => {
-    if (item.status === 'done') doneCount++;
-
-    const li = document.createElement('li');
-    li.className = `list-group-item ${index === currentIndex ? 'active' : ''}`;
-    li.style.padding = "8px";
-    li.style.borderBottom = "1px solid #eee";
-    li.style.cursor = "pointer";
-    if (index === currentIndex) li.style.background = "#e9ecef";
-
-    li.onclick = () => loadSegment(index);
-
-    const title = document.createElement('span');
-    const labelText = item.word ? `[${item.word}]` : item.text.substring(0, 18);
-    title.textContent = `${index + 1}. ${labelText}...`;
-
-    if (item.status === 'done') {
-      title.style.textDecoration = "line-through";
-      title.style.color = "#888";
-    }
-
-    li.appendChild(title);
-    listEl.appendChild(li);
-  });
-
-  const tracker = document.getElementById('progressTracker');
-  if (tracker) tracker.textContent = `${doneCount}/${dataStore.length} Done`;
 }
-
-/**
- * Loads targeted segment into the main editor panel & updates PDF image
- */
-function loadSegment(index) {
-  if (index < 0 || index >= dataStore.length) return;
-  saveCurrentEditorState();
-
-  currentIndex = index;
-  const item = dataStore[currentIndex];
-
-  const editor = document.getElementById('pasuramEditor');
-  if (editor) editor.value = item.text;
-
-  const label = document.getElementById('currentEditingLabel');
-  if (label) label.textContent = `Editing Segment #${currentIndex + 1} ${item.word ? '(' + item.word + ')' : ''}`;
-
-  const viewer = document.getElementById('pageViewer');
-  if (viewer && item.image_url) viewer.src = item.image_url;
-
-  const prevBtn = document.getElementById('prevBtn');
-  if (prevBtn) prevBtn.disabled = currentIndex === 0;
-
-  const nextBtn = document.getElementById('nextBtn');
-  if (nextBtn) nextBtn.disabled = currentIndex === dataStore.length - 1;
-
-  const doneBtn = document.getElementById('markDoneBtn');
-  if (doneBtn) {
-    doneBtn.disabled = false;
-    doneBtn.textContent = item.status === 'done' ? 'Mark Pending' : 'Mark Done';
-  }
-
-  renderSidebar();
-}
-
-/**
- * Saves current textarea content into state array before navigating
- */
-function saveCurrentEditorState() {
-  if (currentIndex >= 0 && currentIndex < dataStore.length) {
-    const editor = document.getElementById('pasuramEditor');
-    if (editor) dataStore[currentIndex].text = editor.value;
-  }
-}
-
-window.navigate = function (dir) {
-  loadSegment(currentIndex + dir);
-};
-
-window.toggleDoneState = function () {
-  if (currentIndex < 0) return;
-  dataStore[currentIndex].status = dataStore[currentIndex].status === 'done' ? 'pending' : 'done';
-  loadSegment(currentIndex);
-};
-
-/**
- * Live Transliteration on Keypress (Space / Enter)
- */
-window.handleTransliterationKeyDown = function (event) {
-  if (event.key === ' ' || event.key === 'Enter') {
-    const editor = event.target;
-    const pos = editor.selectionStart;
-    const before = editor.value.substring(0, pos);
-    const after = editor.value.substring(pos);
-
-    const words = before.split(/(\s+)/);
-    if (words.length > 0) {
-      const idx = words.length - 2;
-      if (idx >= 0 && /^[a-zA-Z]+$/.test(words[idx])) {
-        let t = words[idx].toLowerCase();
-        for (let [eng, tam] of TAMIL_MAP) {
-          t = t.replace(new RegExp(eng, 'g'), tam);
-        }
-        words[idx] = t;
-        editor.value = words.join('') + after;
-        editor.selectionStart = editor.selectionEnd = pos;
-      }
-    }
-  }
-};
-
-/**
- * Inserts characters directly at the current cursor position
- */
-window.insertAtCursor = function (text) {
-  const editor = document.getElementById('pasuramEditor');
-  if (!editor) return;
-
-  const start = editor.selectionStart;
-  const end = editor.selectionEnd;
-  editor.value = editor.value.substring(0, start) + text + editor.value.substring(end);
-  editor.setSelectionRange(start + text.length, start + text.length);
-  editor.focus();
-};
-
-/**
- * Renders the virtual key buttons in the virtual keyboard container
- */
-function renderVirtualKeyboard() {
-  const renderRow = (id, keys) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = '';
-    keys.forEach(k => {
-      const btn = document.createElement('button');
-      btn.className = 'key';
-      btn.textContent = k;
-      btn.style.margin = "2px";
-      btn.style.padding = "5px 8px";
-      btn.style.cursor = "pointer";
-      btn.onclick = () => insertAtCursor(k);
-      el.appendChild(btn);
-    });
-  };
-
-  renderRow('vowelsRow', TAMIL_KEYS.vowels);
-  renderRow('consonantsRow', TAMIL_KEYS.consonants);
-  renderRow('modifiersRow', TAMIL_KEYS.modifiers);
-}
-
-/**
- * Exports current modifications as replacements.json
- */
-window.saveFile = function () {
-  saveCurrentEditorState();
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataStore, null, 2));
-  const anchor = document.createElement('a');
-  anchor.setAttribute("href", dataStr);
-  anchor.setAttribute("download", "replacements.json");
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-};
