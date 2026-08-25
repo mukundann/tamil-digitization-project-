@@ -1,6 +1,12 @@
+/**
+ * Tamil OCR Proofreader Engine - Integrated Application Logic
+ * Features: Book/Page Selectors, Virtual Keyboard, Phonetic Transliteration, Side-by-Side Image Sync, State Tracking
+ */
+
 let dataStore = [];
 let currentIndex = -1;
 
+// Phonetic Transliteration Mapping Table
 const TAMIL_MAP = [
     ["aai", "ஆய்"], ["aaw", "ஆவ்"], ["ee", "ஈ"], ["oo", "ஊ"], ["ai", "ஐ"], ["au", "ஔ"],
     ["kaa", "கா"], ["kii", "கீ"], ["koo", "கூ"], ["kai", "கை"], ["kau", "கௌ"],
@@ -12,6 +18,7 @@ const TAMIL_MAP = [
     ["l", "ல்"], ["v", "வ்"], ["zh", "ழ்"]
 ];
 
+// Virtual Keyboard Character Layouts
 const TAMIL_KEYS = {
   vowels: ['அ', 'ஆ', 'இ', 'ஈ', 'உ', 'ஊ', 'எ', 'ஏ', 'ஐ', 'ஒ', 'ஓ', 'ஔ', 'ஃ'],
   consonants: ['க', 'ங', 'ச', 'ஞ', 'ட', 'ண', 'த', 'ந', 'ப', 'ம', 'ய', 'ர', 'ல', 'வ', 'ழ', 'ள', 'ற', 'ன'],
@@ -23,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   autoLoad();
 });
 
+/**
+ * Attempts to auto-load root queue if available
+ */
 function autoLoad() {
   fetch('words_for_review.json')
     .then(res => res.json())
@@ -31,20 +41,29 @@ function autoLoad() {
     }).catch(() => {});
 }
 
+/**
+ * Normalizes raw JSON input into the internal application state
+ */
 function loadDataStore(parsedData) {
   const rawList = Array.isArray(parsedData) ? parsedData : [parsedData];
   dataStore = rawList.map((item, idx) => ({
     id: item.id || idx + 1,
     text: item.raw_paragraph || item.paragraph || item.text || "",
+    word: item.word || "",
     status: item.status || "pending",
-    image_url: item.image_url || ""
+    image_url: item.page_image || item.image_url || ""
   }));
 
-  document.getElementById('saveBtn').disabled = false;
+  const saveBtn = document.getElementById('saveBtn');
+  if (saveBtn) saveBtn.disabled = false;
+
   renderSidebar();
   if (dataStore.length > 0) loadSegment(0);
 }
 
+/**
+ * Handles manual JSON file uploads
+ */
 window.handleFileSelect = function (event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -61,6 +80,47 @@ window.handleFileSelect = function (event) {
   reader.readAsText(file);
 };
 
+/**
+ * Dynamic Book -> Page Queue Loaders
+ */
+window.loadBookPages = function () {
+    const book = document.getElementById('bookSelect').value;
+    const pageSelect = document.getElementById('pageSelect');
+    if (!pageSelect) return;
+
+    pageSelect.innerHTML = '<option value="">-- Choose Page --</option>';
+    if (!book) return;
+
+    for (let i = 1; i <= 300; i++) {
+        const opt = document.createElement('option');
+        opt.value = `review_queue/${book}/page_${i}.json`;
+        opt.textContent = `Page ${i}`;
+        pageSelect.appendChild(opt);
+    }
+};
+
+window.loadPageData = async function () {
+    const pageJsonPath = document.getElementById('pageSelect').value;
+    if (!pageJsonPath) return;
+
+    try {
+        const response = await fetch(pageJsonPath);
+        if (response.ok) {
+            const data = await response.json();
+            loadDataStore(data);
+        } else {
+            alert("No review flags found for this page!");
+            dataStore = [];
+            renderSidebar();
+        }
+    } catch (e) {
+        console.error("Error loading page data:", e);
+    }
+};
+
+/**
+ * Sidebar Tracker & Segment List Renderer
+ */
 function renderSidebar() {
   const listEl = document.getElementById('pasuramList');
   if (!listEl) return;
@@ -72,18 +132,33 @@ function renderSidebar() {
 
     const li = document.createElement('li');
     li.className = `list-group-item ${index === currentIndex ? 'active' : ''}`;
+    li.style.padding = "8px";
+    li.style.borderBottom = "1px solid #eee";
+    li.style.cursor = "pointer";
+    if (index === currentIndex) li.style.background = "#e9ecef";
+
     li.onclick = () => loadSegment(index);
 
     const title = document.createElement('span');
-    title.textContent = `${index + 1}. ${item.text.substring(0, 18)}...`;
+    const labelText = item.word ? `[${item.word}]` : item.text.substring(0, 18);
+    title.textContent = `${index + 1}. ${labelText}...`;
+
+    if (item.status === 'done') {
+      title.style.textDecoration = "line-through";
+      title.style.color = "#888";
+    }
 
     li.appendChild(title);
     listEl.appendChild(li);
   });
 
-  document.getElementById('progressTracker').textContent = `${doneCount}/${dataStore.length} Done`;
+  const tracker = document.getElementById('progressTracker');
+  if (tracker) tracker.textContent = `${doneCount}/${dataStore.length} Done`;
 }
 
+/**
+ * Loads targeted segment into the main editor panel & updates PDF image
+ */
 function loadSegment(index) {
   if (index < 0 || index >= dataStore.length) return;
   saveCurrentEditorState();
@@ -91,21 +166,37 @@ function loadSegment(index) {
   currentIndex = index;
   const item = dataStore[currentIndex];
 
-  document.getElementById('pasuramEditor').value = item.text;
-  document.getElementById('currentEditingLabel').textContent = `Editing Segment #${currentIndex + 1}`;
-  document.getElementById('pageViewer').src = item.image_url || '';
+  const editor = document.getElementById('pasuramEditor');
+  if (editor) editor.value = item.text;
 
-  document.getElementById('prevBtn').disabled = currentIndex === 0;
-  document.getElementById('nextBtn').disabled = currentIndex === dataStore.length - 1;
-  document.getElementById('markDoneBtn').disabled = false;
-  document.getElementById('markDoneBtn').textContent = item.status === 'done' ? 'Mark Pending' : 'Mark Done';
+  const label = document.getElementById('currentEditingLabel');
+  if (label) label.textContent = `Editing Segment #${currentIndex + 1} ${item.word ? '(' + item.word + ')' : ''}`;
+
+  const viewer = document.getElementById('pageViewer');
+  if (viewer && item.image_url) viewer.src = item.image_url;
+
+  const prevBtn = document.getElementById('prevBtn');
+  if (prevBtn) prevBtn.disabled = currentIndex === 0;
+
+  const nextBtn = document.getElementById('nextBtn');
+  if (nextBtn) nextBtn.disabled = currentIndex === dataStore.length - 1;
+
+  const doneBtn = document.getElementById('markDoneBtn');
+  if (doneBtn) {
+    doneBtn.disabled = false;
+    doneBtn.textContent = item.status === 'done' ? 'Mark Pending' : 'Mark Done';
+  }
 
   renderSidebar();
 }
 
+/**
+ * Saves current textarea content into state array before navigating
+ */
 function saveCurrentEditorState() {
   if (currentIndex >= 0 && currentIndex < dataStore.length) {
-    dataStore[currentIndex].text = document.getElementById('pasuramEditor').value;
+    const editor = document.getElementById('pasuramEditor');
+    if (editor) dataStore[currentIndex].text = editor.value;
   }
 }
 
@@ -119,6 +210,9 @@ window.toggleDoneState = function () {
   loadSegment(currentIndex);
 };
 
+/**
+ * Live Transliteration on Keypress (Space / Enter)
+ */
 window.handleTransliterationKeyDown = function (event) {
   if (event.key === ' ' || event.key === 'Enter') {
     const editor = event.target;
@@ -142,8 +236,13 @@ window.handleTransliterationKeyDown = function (event) {
   }
 };
 
+/**
+ * Inserts characters directly at the current cursor position
+ */
 window.insertAtCursor = function (text) {
   const editor = document.getElementById('pasuramEditor');
+  if (!editor) return;
+
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
   editor.value = editor.value.substring(0, start) + text + editor.value.substring(end);
@@ -151,6 +250,9 @@ window.insertAtCursor = function (text) {
   editor.focus();
 };
 
+/**
+ * Renders the virtual key buttons in the virtual keyboard container
+ */
 function renderVirtualKeyboard() {
   const renderRow = (id, keys) => {
     const el = document.getElementById(id);
@@ -160,6 +262,9 @@ function renderVirtualKeyboard() {
       const btn = document.createElement('button');
       btn.className = 'key';
       btn.textContent = k;
+      btn.style.margin = "2px";
+      btn.style.padding = "5px 8px";
+      btn.style.cursor = "pointer";
       btn.onclick = () => insertAtCursor(k);
       el.appendChild(btn);
     });
@@ -170,6 +275,9 @@ function renderVirtualKeyboard() {
   renderRow('modifiersRow', TAMIL_KEYS.modifiers);
 }
 
+/**
+ * Exports current modifications as replacements.json
+ */
 window.saveFile = function () {
   saveCurrentEditorState();
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataStore, null, 2));
