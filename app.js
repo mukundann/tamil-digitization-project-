@@ -3,9 +3,8 @@
  * Image Path Target: output_texts/<book>/images/page-<num>.png
  */
 
-const AVAILABLE_BOOKS = ["sr194"];
-
-let currentBook = AVAILABLE_BOOKS[0];
+let AVAILABLE_BOOKS = [];
+let currentBook = "";
 let currentPage = 1;
 
 const editor = document.getElementById('textEditor');
@@ -33,7 +32,8 @@ const TAMIL_MAP = [
     ["laa", "லா"], ["lii", "லீ"], ["loo", "லூ"], ["lai", "லை"], ["lau", "லௌ"],
     ["vaa", "வா"], ["vii", "வீ"], ["voo", "வூ"], ["vai", "வை"], ["vau", "வௌ"],
     ["zhaa", "ழா"], ["zhii", "ழீ"], ["zhoo", "ழூ"], ["zhai", "ழை"], ["zhau", "ழௌ"],
-    ["laaa", "ளா"], ["lii", "ளீ"], ["loo", "ளூ"], ["lai", "ளை"], ["lau", "ளௌ"],
+    ["laa", "ளா"], ["lii", "ளீ"], ["loo", "ளூ"], ["lai", "ளை"], ["lau", "ளௌ"],
+    
 
     ["aa", "ஆ"], ["ii", "ஈ"], ["uu", "ஊ"], ["ea", "ஏ"], ["oa", "ஓ"],
     ["ka", "க"], ["ki", "கி"], ["ku", "கு"], ["ke", "கெ"], ["ko", "கொ"],
@@ -58,31 +58,54 @@ const TAMIL_MAP = [
     ["l", "ல்"], ["v", "வ்"], ["zh", "ழ்"], ["j", "ஜ்"], ["h", "ஹ்"], ["s", "ஸ்"]
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    populateBookDropdown();
-
-    const savedBook = localStorage.getItem("last_selected_book");
-    if (savedBook && AVAILABLE_BOOKS.includes(savedBook)) {
-        currentBook = savedBook;
-        document.getElementById('bookSelect').value = currentBook;
-    }
-
-    loadBook(currentBook);
+// Entry Point Initialization
+document.addEventListener('DOMContentLoaded', async () => {
     buildVirtualKeyboard();
+    await loadBookManifest();
 });
+
+async function loadBookManifest() {
+    try {
+        const res = await fetch('output_texts/manifest.json');
+        if (!res.ok) throw new Error("Could not fetch manifest.json");
+
+        AVAILABLE_BOOKS = await res.json();
+
+        if (Array.isArray(AVAILABLE_BOOKS) && AVAILABLE_BOOKS.length > 0) {
+            populateBookDropdown();
+
+            // Set currentBook from saved history or default to the first entry in manifest
+            const savedBook = localStorage.getItem("last_selected_book");
+            if (savedBook && AVAILABLE_BOOKS.includes(savedBook)) {
+                currentBook = savedBook;
+            } else {
+                currentBook = AVAILABLE_BOOKS[0];
+            }
+
+            document.getElementById('bookSelect').value = currentBook;
+            loadBook(currentBook);
+        }
+    } catch (e) {
+        console.warn("Could not load dynamic manifest, defaulting to empty list.", e);
+    }
+}
 
 function populateBookDropdown() {
     const select = document.getElementById('bookSelect');
-    select.innerHTML = AVAILABLE_BOOKS.map(b => `<option value="${b}">${b}</option>`).join('');
+    if (select) {
+        select.innerHTML = AVAILABLE_BOOKS.map(b => `<option value="${b}">${b}</option>`).join('');
+    }
 }
 
 function switchBook(bookId) {
+    if (!bookId) return;
     currentBook = bookId;
     localStorage.setItem("last_selected_book", bookId);
     loadBook(bookId);
 }
 
 function loadBook(bookId) {
+    if (!bookId) return;
     document.getElementById('currentBookLabel').textContent = bookId;
 
     const savedPage = localStorage.getItem(getStorageKeyPage(bookId));
@@ -120,10 +143,41 @@ function restoreScroll(bookId) {
     }
 }
 
-// --- Image Viewer Engine ---
 function loadPageImage(pageNum) {
-    // Looks inside output_texts/<book>/images/ page images
-    pageImg.src = `output_texts/${currentBook}/images/page-${pageNum}.png`;
+    if (!currentBook) return;
+
+    // Try common zero-padded formats dynamically: 4-digit, 3-digit, 2-digit, and raw number
+    const padded4 = String(pageNum).padStart(4, '0'); // page-0001.png
+    const padded3 = String(pageNum).padStart(3, '0'); // page-001.png
+    const padded2 = String(pageNum).padStart(2, '0'); // page-01.png
+    const rawNum = String(pageNum);                  // page-1.png
+
+    const basePath = `output_texts/${currentBook}/images`;
+    const imgElement = pageImg;
+
+    // Helper to test multiple path variations sequentially
+    const tryLoadImage = (paths) => {
+        if (paths.length === 0) return;
+        const currentPath = paths.shift();
+
+        const testImg = new Image();
+        testImg.onload = () => {
+            imgElement.src = currentPath;
+        };
+        testImg.onerror = () => {
+            // Try next path candidate if loading fails
+            tryLoadImage(paths);
+        };
+        testImg.src = currentPath;
+    };
+
+    tryLoadImage([
+        `${basePath}/page-${padded3}.png`,
+        `${basePath}/page-${padded4}.png`,
+        `${basePath}/page-${padded2}.png`,
+        `${basePath}/page-${rawNum}.png`
+    ]);
+
     document.getElementById('pageNumInput').value = pageNum;
     localStorage.setItem(getStorageKeyPage(currentBook), pageNum);
 }
@@ -146,11 +200,15 @@ function goToPage(val) {
 
 // --- Text Persistence & Auto Save ---
 editor.addEventListener('input', () => {
-    localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+    if (currentBook) {
+        localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+    }
 });
 
 editor.addEventListener('scroll', () => {
-    localStorage.setItem(getStorageKeyScroll(currentBook), editor.scrollTop);
+    if (currentBook) {
+        localStorage.setItem(getStorageKeyScroll(currentBook), editor.scrollTop);
+    }
 });
 
 editor.addEventListener('keyup', updatePosIndicator);
@@ -170,14 +228,17 @@ document.getElementById('txtFileInput').addEventListener('change', function (e) 
     const reader = new FileReader();
     reader.onload = function (evt) {
         editor.value = evt.target.result;
-        localStorage.setItem(getStorageKeyText(currentBook), editor.value);
-        editor.scrollTop = 0;
-        localStorage.setItem(getStorageKeyScroll(currentBook), 0);
+        if (currentBook) {
+            localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+            editor.scrollTop = 0;
+            localStorage.setItem(getStorageKeyScroll(currentBook), 0);
+        }
     };
     reader.readAsText(file);
 });
 
 function clearCurrentBookProgress() {
+    if (!currentBook) return;
     if (confirm(`Reset saved edits, page number, and scroll position for '${currentBook}'?`)) {
         localStorage.removeItem(getStorageKeyText(currentBook));
         localStorage.removeItem(getStorageKeyScroll(currentBook));
@@ -191,7 +252,7 @@ function exportText() {
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
     const downloadLink = document.createElement('a');
     downloadLink.href = URL.createObjectURL(blob);
-    downloadLink.download = `${currentBook}_corrected.txt`;
+    downloadLink.download = `${currentBook || 'book'}_corrected.txt`;
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
@@ -213,14 +274,34 @@ function handleTransliteration(event) {
         const textBeforeCursor = editor.value.substring(0, cursorPosition);
         const textAfterCursor = editor.value.substring(cursorPosition);
 
+        // Extract words separated by spaces or newlines
         const words = textBeforeCursor.split(/(\s+)/);
+        
         if (words.length > 0) {
-            const lastWordIndex = words.length - 2;
-            if (lastWordIndex >= 0 && /^[a-zA-Z]+$/.test(words[lastWordIndex])) {
-                words[lastWordIndex] = transliterateWord(words[lastWordIndex]);
-                editor.value = words.join('') + textAfterCursor;
-                editor.selectionStart = editor.selectionEnd = cursorPosition;
-                localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+            // Find the last typed word segment
+            const lastWordIndex = words.length - 1;
+            const wordToTransliterate = words[lastWordIndex];
+
+            // If the last word is in English characters, convert it
+            if (/^[a-zA-Z]+$/.test(wordToTransliterate)) {
+                event.preventDefault(); // Prevent double spacing
+
+                const transliterated = transliterateWord(wordToTransliterate);
+                words[lastWordIndex] = transliterated;
+
+                const spaceOrNewline = (event.key === 'Enter') ? '\n' : ' ';
+                
+                // Reassemble text with transliterated word + space
+                editor.value = words.join('') + spaceOrNewline + textAfterCursor;
+
+                // Move cursor right after the newly inserted Tamil word and space
+                const newCursorPos = words.join('').length + spaceOrNewline.length;
+                editor.setSelectionRange(newCursorPos, newCursorPos);
+
+                // Save to localStorage
+                if (currentBook) {
+                    localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+                }
             }
         }
     }
@@ -235,7 +316,9 @@ function insertCharacter(char) {
     const newPos = start + char.length;
     editor.setSelectionRange(newPos, newPos);
     editor.focus();
-    localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+    if (currentBook) {
+        localStorage.setItem(getStorageKeyText(currentBook), editor.value);
+    }
 }
 
 function buildVirtualKeyboard() {
@@ -245,6 +328,7 @@ function buildVirtualKeyboard() {
 
     const renderRow = (containerId, chars) => {
         const container = document.getElementById(containerId);
+        if (!container) return;
         container.innerHTML = '';
         chars.forEach(char => {
             const btn = document.createElement('button');
@@ -260,12 +344,10 @@ function buildVirtualKeyboard() {
     renderRow('diacriticKeys', diacritics);
 }
 
-
 let originalFileHandle = null;
 
 async function saveFileDirectly() {
     try {
-        // Prompt the user to pick the file directly from their project folder the first time
         if (!originalFileHandle) {
             [originalFileHandle] = await window.showOpenFilePicker({
                 types: [{
@@ -275,7 +357,6 @@ async function saveFileDirectly() {
             });
         }
 
-        // Request write access and save directly into the file on disk
         const writable = await originalFileHandle.createWritable();
         await writable.write(editor.value);
         await writable.close();

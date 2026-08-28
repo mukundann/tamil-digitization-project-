@@ -1,44 +1,198 @@
 <!DOCTYPE html>
 <html lang="ta">
+
 <head>
     <meta charset="UTF-8">
     <title>Tamil Digitization - Multi-Book Proofreader</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f4f6f9; }
-        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f4f6f9;
+        }
+
         /* Top Navigation Header */
-        .header { background: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .controls { display: flex; gap: 10px; align-items: center; }
-        .btn { padding: 6px 12px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn:hover { background: #219150; }
-        .btn-reset { background: #e74c3c; }
-        .btn-reset:hover { background: #c0392b; }
-        select { padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 0.95em; outline: none; }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: #219150;
+        }
+
+        .btn-reset {
+            background: #e74c3c;
+        }
+
+        .btn-reset:hover {
+            background: #c0392b;
+        }
+
+        select {
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.95em;
+            outline: none;
+        }
 
         /* Split Screen Container */
-        .container { flex: 1; display: flex; overflow: hidden; }
+        .container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
 
         /* Left Pane: Page Image Viewer */
-        .left-pane { flex: 1; background: #525659; display: flex; flex-direction: column; border-right: 2px solid #ccc; }
-        .image-toolbar { background: #333; color: white; padding: 8px; display: flex; justify-content: center; gap: 15px; align-items: center; }
-        .image-toolbar input { width: 60px; text-align: center; font-weight: bold; padding: 2px; }
-        .image-viewport { flex: 1; overflow: auto; display: flex; justify-content: center; padding: 15px; }
-        .image-viewport img { max-width: 100%; height: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.3); background: white; }
+        .left-pane {
+            flex: 1;
+            background: #525659;
+            display: flex;
+            flex-direction: column;
+            border-right: 2px solid #ccc;
+        }
+
+        .image-toolbar {
+            background: #333;
+            color: white;
+            padding: 8px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .image-toolbar input {
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+            padding: 2px;
+        }
+
+        .image-viewport {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            padding: 15px;
+        }
+
+        .image-viewport img {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            background: white;
+        }
 
         /* Right Pane: Scrollable Text Editor & Keyboard */
-        .right-pane { flex: 1; display: flex; flex-direction: column; background: #fdf6e3; padding: 15px; position: relative; }
-        .editor-header { font-size: 0.95em; color: #555; margin-bottom: 8px; font-weight: bold; display: flex; justify-content: space-between; }
-        #textEditor { flex: 1; width: 100%; font-size: 1.15em; line-height: 1.8; padding: 15px; border: 1px solid #d3d3d3; border-radius: 4px; font-family: 'Segoe UI', sans-serif; resize: none; outline: none; background: white; overflow-y: auto; }
+        .right-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fdf6e3;
+            padding: 15px;
+            position: relative;
+        }
+
+        .editor-header {
+            font-size: 0.95em;
+            color: #555;
+            margin-bottom: 8px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #textEditor {
+            flex: 1;
+            width: 100%;
+            font-size: 1.15em;
+            line-height: 1.8;
+            padding: 15px;
+            border: 1px solid #d3d3d3;
+            border-radius: 4px;
+            font-family: 'Segoe UI', sans-serif;
+            resize: none;
+            outline: none;
+            background: white;
+            overflow-y: auto;
+        }
 
         /* Virtual Tamil Keyboard Styling */
-        .keyboard-container { margin-top: 10px; background: #eaeaea; padding: 10px; border-radius: 6px; border: 1px solid #ccc; max-height: 180px; overflow-y: auto; }
-        .keyboard-section-title { font-size: 0.8em; font-weight: bold; color: #444; margin: 4px 0 2px 0; }
-        .keyboard-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
-        .key-btn { padding: 5px 8px; font-size: 1em; background: white; border: 1px solid #bbb; border-radius: 3px; cursor: pointer; min-width: 32px; text-align: center; }
-        .key-btn:hover { background: #3498db; color: white; border-color: #2980b9; }
+        .keyboard-container {
+            margin-top: 10px;
+            background: #eaeaea;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            /* Increase height and allow container to expand dynamically */
+            min-height: 240px;
+            max-height: none;
+            overflow-y: visible;
+        }
+
+        .keyboard-section-title {
+            font-size: 0.8em;
+            font-weight: bold;
+            color: #444;
+            margin: 6px 0 3px 0;
+        }
+
+        .keyboard-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-bottom: 6px;
+        }
+
+        .key-btn {
+            padding: 4px 6px;
+            font-size: 0.95em;
+            background: white;
+            border: 1px solid #bbb;
+            border-radius: 3px;
+            cursor: pointer;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .key-btn:hover {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="header">
@@ -56,17 +210,30 @@
         </div>
     </div>
 
+
     <div class="container">
         <!-- Left Pane: Page-wise Image Viewer -->
+
         <div class="left-pane">
             <div class="image-toolbar">
                 <button class="btn" style="padding: 4px 8px;" onclick="changePage(-1)">◀ Prev Page</button>
-                <span>Page <input type="number" id="pageNumInput" value="1" min="1" onchange="goToPage(this.value)"></span>
+                <span>Page <input type="number" id="pageNumInput" value="1" min="1"
+                        onchange="goToPage(this.value)"></span>
                 <button class="btn" style="padding: 4px 8px;" onclick="changePage(1)">Next Page ▶</button>
+            </div>
+            <div class="image-viewer-header" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                <button class="btn" onclick="zoomIn()">Zoom +</button>
+                <button class="btn" onclick="zoomOut()">Zoom -</button>
+                <button class="btn" onclick="resetImageZoom()">Reset</button>
+            </div>
+
+            <div class="image-container" style="overflow: auto; max-height: 80vh; border: 1px solid #ccc;">
+                <img id="pageViewer" src="" alt="Book Page Image" style="transition: transform 0.15s ease;" />
             </div>
             <div class="image-viewport">
                 <img id="pageViewer" src="" alt="Loading page image...">
             </div>
+
         </div>
 
         <!-- Right Pane: Scrollable Text Editor & Keyboard -->
@@ -75,8 +242,8 @@
                 <span>OCR Text Editor (<span id="currentBookLabel">sr194</span>):</span>
                 <span id="posIndicator">Line: 1 | Col: 1</span>
             </div>
-            <textarea id="textEditor" placeholder="Loading text..." onkeyup="handleTransliteration(event)"></textarea>
 
+            <textarea id="textEditor" placeholder="Loading text..." onkeydown="handleTransliteration(event)"></textarea>
             <!-- Virtual Tamil Keyboard -->
             <div class="keyboard-container">
                 <div class="keyboard-section-title">உயிரெழுத்துக்கள் (Vowels)</div>
@@ -91,6 +258,8 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!--<script src="app.js"></script> -->
+    <script type="module" src="js/app.js"></script>
 </body>
+
 </html>
