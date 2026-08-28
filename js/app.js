@@ -5,26 +5,26 @@
 import { buildVirtualKeyboard } from './transliteration.js';
 
 import { zoomImage, resetZoom } from './bookManager.js';
-import { 
-    currentBook, 
-    loadBookManifest, 
-    switchBook, 
-    loadPageImage, 
-    changePage, 
-    goToPage, 
-    setCurrentPage, 
-    getStorageKeyPage, 
-    getStorageKeyText, 
-    getStorageKeyScroll 
+import {
+    currentBook,
+    loadBookManifest,
+    switchBook,
+    loadPageImage,
+    changePage,
+    goToPage,
+    setCurrentPage,
+    getStorageKeyPage,
+    getStorageKeyText,
+    getStorageKeyScroll
 } from './bookManager.js';
-import { 
-    restoreScroll, 
-    updatePosIndicator, 
-    handleTransliteration, 
-    insertCharacter, 
-    clearCurrentBookProgress, 
-    exportText, 
-    saveFileDirectly 
+import {
+    restoreScroll,
+    updatePosIndicator,
+    handleTransliteration,
+    insertCharacter,
+    clearCurrentBookProgress,
+    exportText,
+    saveFileDirectly
 } from './editor.js';
 
 const editor = document.getElementById('textEditor');
@@ -91,12 +91,16 @@ function bindEvents() {
             localStorage.setItem(getStorageKeyScroll(currentBook), editor.scrollTop);
         }
     });
+    // 1. Change keyup to keydown so Space/Enter key presses are intercepted BEFORE insertion
+    editor.addEventListener('keydown', (e) => {
+        handleTransliteration(e, editor);
+    });
 
     editor.addEventListener('keyup', (e) => {
         updatePosIndicator(editor);
         handleTransliteration(e, editor);
     });
-    
+
     editor.addEventListener('click', () => updatePosIndicator(editor));
 
     // File Operations
