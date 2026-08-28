@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# ocr_tamil_pdf.sh - OCR processing for Tamil & Manipravalam Vyakhyanam Books
+# ocr_tamil_pdf.sh - OCR processing for Tamil & Sanskrit Books
 #
 # Usage:
-#   ./ocr_tamil_pdf.sh <pdf_path_or_url> output.txt [page_range]
+#   ./ocr_tamil_pdf.sh <pdf_path_or_url> <book_id> [page_range]
 #
 set -euo pipefail
 
-INPUT_ARG="${1:?Usage: $0 <pdf_path_or_url> output.txt [page_range]}"
-OUTPUT_TXT="${2:?Usage: $0 <pdf_path_or_url> output.txt [page_range]}"
+INPUT_ARG="${1:?Usage: $0 <pdf_path_or_url> <book_id> [page_range]}"
+BOOK_ID="${2:?Usage: $0 <pdf_path_or_url> <book_id> [page_range]}"
 PAGE_RANGE="${3:-}"
 
 DPI=300
@@ -17,7 +17,13 @@ PSM=6
 WORKDIR="$(mktemp -d)"
 PAGES_DIR="$WORKDIR/pages"
 OCR_DIR="$WORKDIR/ocr"
-mkdir -p "$PAGES_DIR" "$OCR_DIR" output_texts/images
+
+# Define modular directory structure for output texts and images
+BOOK_OUTPUT_DIR="output_texts/${BOOK_ID}"
+IMAGES_DIR="${BOOK_OUTPUT_DIR}/images"
+OUTPUT_TXT="${BOOK_OUTPUT_DIR}/${BOOK_ID}.txt"
+
+mkdir -p "$PAGES_DIR" "$OCR_DIR" "$IMAGES_DIR"
 
 cleanup() {
     rm -rf "$WORKDIR"
@@ -41,8 +47,8 @@ else
     pdftoppm -png -r "$DPI" "$INPUT_PDF" "$PAGES_DIR/page"
 fi
 
-# Save rendered images for UI display
-cp "$PAGES_DIR"/page-*.png output_texts/images/ 2>/dev/null || true
+# Save rendered images inside output_texts/<book_id>/images/
+cp "$PAGES_DIR"/page-*.png "$IMAGES_DIR"/ 2>/dev/null || true
 
 # Step 2: Run Tesseract using combined Tamil + Sanskrit language models
 for page in "$PAGES_DIR"/page-*.png; do
@@ -52,12 +58,12 @@ for page in "$PAGES_DIR"/page-*.png; do
 done
 wait
 
-# Step 3: Clean text outputs via Python script and concatenate in order
+# Step 3: Clean text outputs via Python script and concatenate into final book file
 > "$OUTPUT_TXT"
 for txt in $(ls "$OCR_DIR"/page-*.txt | sort -V); do
     base_page=$(basename "$txt" .txt)
     python3 clean_text.py "$txt" "$WORKDIR/cleaned_temp.txt"
-    echo "[[IMAGE:output_texts/images/${base_page}.png]]" >> "$OUTPUT_TXT"
+    echo "[[IMAGE:output_texts/${BOOK_ID}/images/${base_page}.png]]" >> "$OUTPUT_TXT"
     cat "$WORKDIR/cleaned_temp.txt" >> "$OUTPUT_TXT"
     echo -e "\n\n--- Page Break ---\n" >> "$OUTPUT_TXT"
 done
