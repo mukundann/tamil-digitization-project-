@@ -19,6 +19,15 @@ os.makedirs(TEMP_PDF_DIR, exist_ok=True)
 
 more_work_remains = False
 
+# 1. Define modular per-book base folder
+book_dir="output_texts/${book_id}"
+chunk_dir="${book_dir}/chunks"
+images_dir="${book_dir}/images"
+final_output="${book_dir}/${book_id}.txt"
+
+# 2. Ensure directories exist before running
+mkdir -p "$book_dir" "$chunk_dir" "$images_dir"
+
 
 def get_pdf_total_pages(pdf_path):
     """Uses pdfinfo to get total number of pages in PDF."""
