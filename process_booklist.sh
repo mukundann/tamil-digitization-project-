@@ -27,12 +27,14 @@ while IFS= read -r line || [ -n "$line" ]; do
         continue
     fi
 
-    # Derive base filename from PDF URL
+    # Derive base filename and target book directory
     BASE_NAME=$(basename "${PDF_URL%%\?*}" .pdf)
-    TXT_OUTPUT="${OUTPUT_DIR}/${BASE_NAME}.txt"
-    IMG_DIR="${OUTPUT_DIR}/${BASE_NAME}_images"
+    BOOK_DIR="${OUTPUT_DIR}/${BASE_NAME}"
+    TXT_OUTPUT="${BOOK_DIR}/${BASE_NAME}.txt"
+    IMG_DIR="${BOOK_DIR}/images"
 
-    mkdir -p "$IMG_DIR"
+    # Ensure the per-book output directory exists
+    mkdir -p "$BOOK_DIR"
 
     echo "=========================================="
     echo "Processing: $BASE_NAME"
@@ -43,8 +45,8 @@ while IFS= read -r line || [ -n "$line" ]; do
     echo "📥 Downloading PDF..."
     curl -sSL -o "$PDF_TEMP" "$PDF_URL"
 
-    # Convert PDF to PNG images for side-by-side editing if images don't exist yet
-    if [[ -z $(ls -A "$IMG_DIR" 2>/dev/null) ]]; then
+    # Convert PDF to PNG images (e.g. page-1.png) if images don't exist yet
+    if [[ -z $(ls -A "$IMG_DIR"/*.png 2>/dev/null) ]]; then
         echo "🖼️ Converting PDF to PNG images for side-by-side web editor..."
         pdftoppm -png -r 150 "$PDF_TEMP" "$IMG_DIR/page"
     fi
